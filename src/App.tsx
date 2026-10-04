@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AppId,
   ColorSchemeId,
@@ -29,6 +29,12 @@ import { SoftwareManagerApp } from './apps/SoftwareManagerApp';
 import { InsightApp } from './apps/InsightApp';
 import { NetscapeApp } from './apps/NetscapeApp';
 import { JotApp } from './apps/JotApp';
+import { ScreenSaverApp, ScreenSaverConfig } from './apps/ScreenSaverApp';
+import { ElectroPaintApp } from './apps/ElectroPaintApp';
+import { WavefrontExplorerApp } from './apps/WavefrontExplorerApp';
+import { ReferenceGalleryApp } from './apps/ReferenceGalleryApp';
+import { FcheckApp } from './apps/FcheckApp';
+import { ScreenBlanker } from './components/ScreenBlanker';
 import { irixAudio } from './sound/irixAudio';
 
 interface DesktopShortcut {
@@ -72,6 +78,34 @@ const DESKTOP_SHORTCUTS: DesktopShortcut[] = [
     useMagicCarpet: false,
     appId: 'file_manager',
     payload: { path: '/usr/people/guest' },
+  },
+  {
+    id: 'electropaint_desk',
+    label: 'ep',
+    iconId: 'electropaint',
+    useMagicCarpet: true,
+    appId: 'electropaint',
+  },
+  {
+    id: 'explorer_desk',
+    label: 'explorer',
+    iconId: 'explorer',
+    useMagicCarpet: true,
+    appId: 'explorer',
+  },
+  {
+    id: 'fcheck_desk',
+    label: 'fcheck',
+    iconId: 'reference',
+    useMagicCarpet: true,
+    appId: 'fcheck',
+  },
+  {
+    id: 'screenshots_desk',
+    label: 'screenshots',
+    iconId: 'reference',
+    useMagicCarpet: false,
+    appId: 'reference',
   },
   {
     id: 'iconsmith_desk',
@@ -179,6 +213,36 @@ const APP_DEFAULTS: Record<
     width: 620,
     height: 485,
   },
+  screensaver: {
+    title: 'Screen Saver — Desktop Customize Control Panel',
+    iconId: 'screensaver',
+    width: 700,
+    height: 590,
+  },
+  electropaint: {
+    title: 'ElectroPaint — ep -c (Interactive Dancing Polygons)',
+    iconId: 'electropaint',
+    width: 800,
+    height: 500,
+  },
+  explorer: {
+    title: 'WAVEFRONT EXPLORER 2.0 — Alias|Wavefront (Maya prototype)',
+    iconId: 'explorer',
+    width: 900,
+    height: 600,
+  },
+  reference: {
+    title: 'Real IRIX Screenshot Reference Gallery',
+    iconId: 'reference',
+    width: 860,
+    height: 620,
+  },
+  fcheck: {
+    title: 'fcheck — SGI image & movie sequence viewer',
+    iconId: 'reference',
+    width: 800,
+    height: 560,
+  },
   insight: {
     title: 'SGI InSight — IRIX 6.5 Specifications, Icon Set & Web Framework',
     iconId: 'insight',
@@ -209,6 +273,15 @@ export const App: React.FC = () => {
   const [modalMode, setModalMode] = useState<'prom' | 'clogin' | null>(null);
 
   const [windows, setWindows] = useState<WindowInstance[]>(INITIAL_WINDOWS);
+  const [saverConfig, setSaverConfig] = useState<ScreenSaverConfig>({
+    enabled: true,
+    moduleId: 'electropaint',
+    idleSeconds: 300,
+    lockScreen: false,
+    cycleModules: false,
+  });
+  const [blanked, setBlanked] = useState<boolean>(false);
+  const [blankLocked, setBlankLocked] = useState<boolean>(false);
   const [activeWinId, setActiveWinId] = useState<string>('win_winterm');
   const [vfs, setVfs] = useState<VfsNode[]>(INITIAL_VFS_NODES);
   const [selectedDesktopIcon, setSelectedDesktopIcon] = useState<string | null>(null);
@@ -228,6 +301,19 @@ export const App: React.FC = () => {
 
   const handleLaunchApp = (appId: AppId, payload?: Record<string, unknown>) => {
     irixAudio.playAppLaunch();
+    // `screens bounce` / `hops` / `ep` from xwsh preselect a saver module
+    if (appId === 'screensaver' && typeof payload?.module === 'string') {
+      const requested = payload.module as string;
+      const moduleId =
+        requested === 'bounce'
+          ? 'bounce'
+          : requested === 'hops' || requested === 'hopalong' || requested === 'spaceplants'
+          ? 'hopalong'
+          : requested === 'blank'
+          ? 'blank'
+          : 'electropaint';
+      setSaverConfig((prev) => ({ ...prev, moduleId }));
+    }
     setWindows((prev) => {
       const maxZ = prev.reduce((m, w) => Math.max(m, w.zIndex), 10);
       // Check if an instance of this app already exists on the active desk (or global)
@@ -345,6 +431,32 @@ export const App: React.FC = () => {
     );
   };
 
+  /**
+   * A render written out by the Wavefront Explorer lands in the XFS filesystem
+   * as an image node, so the File Manager Content Viewer can show it — the
+   * simulated stand-in for the SGI RGB files the real program wrote.
+   */
+  const handleSaveRender = (path: string, dataUrl: string, meta: string) => {
+    setVfs((prev) => {
+      const node: VfsNode = {
+        path,
+        name: path.split('/').pop() || 'render.rgb',
+        type: 'file',
+        iconId: 'reference',
+        size: Math.round(dataUrl.length * 0.75),
+        mtime: 'Oct 03 Now',
+        permissions: '-rw-r--r--',
+        owner: currentUser,
+        tagHex: '0x00020001',
+        appId: 'reference',
+        imageUrl: dataUrl,
+        content: meta,
+      };
+      const exists = prev.some((n) => n.path === path);
+      return exists ? prev.map((n) => (n.path === path ? node : n)) : [...prev, node];
+    });
+  };
+
   const handleSaveFtiToVfs = (filename: string, ftiCode: string) => {
     const targetPath = `/usr/lib/filetype/iconlib/${filename}`;
     setVfs((prev) => {
@@ -425,6 +537,49 @@ export const App: React.FC = () => {
     (w) => w.deskId === activeDesk || w.deskId === 'Global'
   );
 
+  /* ------------------------------------------------------------------ *
+   * screen_blanker: the IRIX display blanker.
+   * After the configured idle period the desktop blanks and the selected
+   * screen saver module runs full screen; any input brings the desktop back
+   * (or the console lock prompt, if the screen was locked).
+   * ------------------------------------------------------------------ */
+  const lastActivityRef = useRef<number>(Date.now());
+  const blankedRef = useRef<boolean>(false);
+  useEffect(() => {
+    const bump = () => {
+      lastActivityRef.current = Date.now();
+    };
+    const events: (keyof WindowEventMap)[] = [
+      'mousemove',
+      'mousedown',
+      'keydown',
+      'wheel',
+      'touchstart',
+    ];
+    events.forEach((e) => window.addEventListener(e, bump as EventListener, { passive: true }));
+    const poll = window.setInterval(() => {
+      if (!saverConfig.enabled) return;
+      if (blankedRef.current) return;
+      const idle = (Date.now() - lastActivityRef.current) / 1000;
+      if (idle >= saverConfig.idleSeconds) {
+        blankedRef.current = true;
+        setBlankLocked(saverConfig.lockScreen);
+        setBlanked(true);
+      }
+    }, 1000);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, bump as EventListener));
+      window.clearInterval(poll);
+    };
+  }, [saverConfig]);
+
+  const wakeFromBlanker = () => {
+    blankedRef.current = false;
+    setBlanked(false);
+    setBlankLocked(false);
+    lastActivityRef.current = Date.now();
+  };
+
   return (
     <div
       onContextMenu={(e) => {
@@ -443,6 +598,12 @@ export const App: React.FC = () => {
         userSelect: 'none',
       }}
     >
+      {/* 4Dwm root window stipple pattern */}
+      <div
+        className="irix-stipple"
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}
+      />
+
       {/* Top-Left SGI Toolchest Menu */}
       <Toolchest
         activeDesk={activeDesk}
@@ -679,6 +840,61 @@ export const App: React.FC = () => {
                 onLaunchApp={handleLaunchApp}
               />
             )}
+            {win.appId === 'screensaver' && (
+              <ScreenSaverApp
+                colorScheme={colorScheme}
+                workstation={workstation}
+                config={saverConfig}
+                onChangeConfig={(patch) => setSaverConfig((prev) => ({ ...prev, ...patch }))}
+                onBlankNow={(moduleId) => {
+                  if (moduleId) setSaverConfig((prev) => ({ ...prev, moduleId }));
+                  setBlanked(true);
+                  setBlankLocked(false);
+                }}
+                onSaveFile={handleSaveFile}
+                onLaunchApp={handleLaunchApp}
+              />
+            )}
+            {win.appId === 'electropaint' && (
+              <ElectroPaintApp
+                colorScheme={colorScheme}
+                workstation={workstation}
+                vfs={vfs}
+                onBlankNow={(moduleId) => {
+                  if (moduleId) setSaverConfig((prev) => ({ ...prev, moduleId }));
+                  setBlanked(true);
+                  setBlankLocked(false);
+                }}
+                onSaveFile={handleSaveFile}
+              />
+            )}
+            {win.appId === 'explorer' && (
+              <WavefrontExplorerApp
+                colorScheme={colorScheme}
+                initialMode={
+                  win.payload?.mode as
+                    | 'model'
+                    | 'shade'
+                    | 'animate'
+                    | 'render'
+                    | undefined
+                }
+                onSaveRender={handleSaveRender}
+                onLaunchApp={handleLaunchApp}
+              />
+            )}
+            {win.appId === 'reference' && (
+              <ReferenceGalleryApp colorScheme={colorScheme} onLaunchApp={handleLaunchApp} />
+            )}
+            {win.appId === 'fcheck' && (
+              <FcheckApp
+                colorScheme={colorScheme}
+                vfs={vfs}
+                initialPath={win.payload?.path as string | undefined}
+                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
+                onLaunchApp={handleLaunchApp}
+              />
+            )}
             {win.appId === 'jot' && (
               <JotApp
                 vfs={vfs}
@@ -735,6 +951,38 @@ export const App: React.FC = () => {
           style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
         >
           🦖 fsn 3D
+        </button>
+        <button
+          type="button"
+          className="sgi-btn"
+          onClick={() => handleLaunchApp('electropaint')}
+          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
+        >
+          🔺 ElectroPaint
+        </button>
+        <button
+          type="button"
+          className="sgi-btn"
+          onClick={() => handleLaunchApp('explorer')}
+          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
+        >
+          🎬 Wavefront Explorer
+        </button>
+        <button
+          type="button"
+          className="sgi-btn"
+          onClick={() => handleLaunchApp('reference')}
+          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
+        >
+          📷 IRIX Screenshots
+        </button>
+        <button
+          type="button"
+          className="sgi-btn"
+          onClick={() => handleLaunchApp('fcheck')}
+          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
+        >
+          🎞 fcheck
         </button>
         <button
           type="button"
@@ -814,6 +1062,42 @@ export const App: React.FC = () => {
             className="sgi-menu-item"
             onClick={() => {
               setContextMenu(null);
+              handleLaunchApp('electropaint');
+            }}
+          >
+            <span>ElectroPaint (dancing polygons)</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
+              handleLaunchApp('screensaver');
+            }}
+          >
+            <span>Screen Saver Control Panel</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
+              handleLaunchApp('explorer');
+            }}
+          >
+            <span>Wavefront Explorer 2.0 (Maya predecessor)</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
+              handleLaunchApp('reference');
+            }}
+          >
+            <span>Real IRIX Screenshots</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
               handleLaunchApp('gl_showcase', { mode: 'cube' });
             }}
           >
@@ -839,6 +1123,19 @@ export const App: React.FC = () => {
             <span>SGI PROM Command Monitor...</span>
           </div>
         </div>
+      )}
+
+      {/* screen_blanker: the blanked display with the screen saver running */}
+      {blanked && (
+        <ScreenBlanker
+          moduleId={saverConfig.moduleId}
+          cycleModules={saverConfig.cycleModules}
+          locked={blankLocked}
+          workstationName={workstation.name}
+          osRelease={workstation.osRelease}
+          currentUser={currentUser}
+          onExit={wakeFromBlanker}
+        />
       )}
 
       {/* Optional SGI PROM Monitor or clogin Visual Login Modal */}

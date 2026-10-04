@@ -36,7 +36,7 @@ export const WintermApp: React.FC<WintermAppProps> = ({
     {
       id: 1,
       type: 'out',
-      text: `IRIX64 Release 6.5.22m (${workstation.ipArch}) silicon.sgi.com\nCopyright 1987-2003 Silicon Graphics, Inc. All Rights Reserved.\nType 'help' for available IRIX 6.5 commands, or try 'hinv', 'sgifetch', 'uname -aR', 'fsn', 'iconsmith'.`,
+      text: `IRIX64 Release 6.5.22m (${workstation.ipArch}) silicon.sgi.com\nCopyright 1987-2003 Silicon Graphics, Inc. All Rights Reserved.\nType 'help' for available IRIX 6.5 commands, or try 'hinv', 'sgifetch', 'uname -aR', 'ep', 'screens', 'explorer'.`,
     },
   ]);
 
@@ -77,6 +77,12 @@ export const WintermApp: React.FC<WintermAppProps> = ({
           '  cat <file>      Display file or .fti vector icon source',
           '  tag -q <file>   Query SGI File Typing Rule (.ftr) hexadecimal tag',
           '  iconsmith       Launch SGI IconSmith (.FTI Vector Icon Editor)',
+          '  ep | electropaint  Launch ElectroPaint (the dancing polygons screen saver)',
+          '  screen_blanker  Open the Screen Saver control panel (screen saver modules)',
+          '  screens         List the installed screen saver modules',
+          '  explorer        Launch WAVEFRONT EXPLORER 2.0 (the Maya predecessor)',
+          '  screenshots     Open the real IRIX screenshot reference gallery',
+          '  fcheck [file]   View images / rendered frame sequences (SGI RGB viewer)',
           '  fsn             Launch 3D File System Navigator (Jurassic Park UNIX visualizer)',
           '  gr_osview       Launch Graphical OS System Performance Monitor',
           '  showcase        Launch SGI 3D OpenGL & Buttonfly Showcase',
@@ -297,6 +303,69 @@ export const WintermApp: React.FC<WintermAppProps> = ({
       case 'nedit':
         onLaunchApp('jot');
         output = 'Launching /usr/sbin/jot...';
+        break;
+
+      case 'ep':
+      case 'electropaint':
+        onLaunchApp('electropaint');
+        output = [
+          'Launching /usr/sbin/ep -c (ElectroPaint, interactive)...',
+          'ElectroPaint (TM) 1986 David A. Tristram.  The screen saver is the same',
+          'program with the Panel Library control panel attached:',
+          '   whl wheel   spn spin   flp flip   arm arm   wrst wrist   twst twist',
+          '   sz size     zoom zoom  spd speed  n count   rat rate   rng range',
+        ].join('\n');
+        break;
+
+      case 'screen_blanker':
+      case 'screensaver':
+      case 'screensavers':
+        onLaunchApp('screensaver');
+        output = 'Launching /usr/sbin/screen_blanker control panel (Toolchest > Desktop > Customize > Screen Saver)...';
+        break;
+
+      case 'hops':
+      case 'hopalong':
+      case 'spaceplants':
+      case 'bounce':
+        onLaunchApp('screensaver', { module: cmd });
+        output = `Selecting the ${cmd} screen saver module in the Screen Saver panel...`;
+        break;
+
+      case 'explorer':
+      case 'wavefront':
+      case 'tav':
+      case 'director':
+        onLaunchApp('explorer');
+        output = [
+          'Launching /usr/local/wave/bin/director -- WAVEFRONT EXPLORER 2.0',
+          'Alias|Wavefront, a Silicon Graphics company.  Modules: Model, Shade,',
+          'Animate, Render.  The next generation system built on this code base',
+          'and on PowerAnimator will be announced separately (it becomes Maya).',
+        ].join('\n');
+        break;
+
+      case 'screens':
+        output = [
+          'Installed IRIX 6.5 screen saver modules (/usr/lib/screens):',
+          '  electropaint   ElectroPaint (TM) - the dancing polygons (David A. Tristram)',
+          '  spaceplants    Hopalong plane fractal, a.k.a. "space plants"',
+          '  bounce         SGI demo: rubber ball on a checkerboard floor',
+          '  blank          plain blanker used by the console lock',
+          '',
+          "Run 'screen_blanker' for the control panel, or 'ep' for the interactive version.",
+        ].join('\n');
+        break;
+
+      case 'fcheck':
+        onLaunchApp('fcheck');
+        output = 'Launching /usr/bin/fcheck (SGI image & movie sequence viewer)...';
+        break;
+
+      case 'screenshots':
+      case 'reference':
+        onLaunchApp('reference');
+        output = 'Opening the Real IRIX Screenshot Reference Gallery (/usr/people/guest/screenshots)...';
         break;
 
       default:

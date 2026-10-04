@@ -3,9 +3,18 @@ import { AppId, SgiColorScheme } from '../state/osStore';
 import { IrixVectorIcon, IRIX_ICON_LIBRARY } from '../icons/irixIconSet';
 import { irixAudio } from '../sound/irixAudio';
 
+export type InsightChapter =
+  | 'specs'
+  | 'framework'
+  | 'icons'
+  | '4dwm'
+  | 'savers'
+  | 'wavefront'
+  | 'screenshots';
+
 interface InsightAppProps {
   colorScheme: SgiColorScheme;
-  initialChapter?: 'specs' | 'framework' | 'icons' | '4dwm';
+  initialChapter?: InsightChapter;
   onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
 }
 
@@ -14,9 +23,7 @@ export const InsightApp: React.FC<InsightAppProps> = ({
   initialChapter = 'specs',
   onLaunchApp,
 }) => {
-  const [chapter, setChapter] = useState<'specs' | 'framework' | 'icons' | '4dwm'>(
-    initialChapter
-  );
+  const [chapter, setChapter] = useState<InsightChapter>(initialChapter);
 
   useEffect(() => {
     if (initialChapter) setChapter(initialChapter);
@@ -65,6 +72,9 @@ export const InsightApp: React.FC<InsightAppProps> = ({
               { id: 'specs', label: '2. IRIX 6.5 Specs' },
               { id: 'icons', label: '3. .FTI Icon Set' },
               { id: '4dwm', label: '4. 4Dwm & Motif UI' },
+              { id: 'savers', label: '5. Screen Savers / ElectroPaint' },
+              { id: 'wavefront', label: '6. Wavefront Explorer' },
+              { id: 'screenshots', label: '7. Real IRIX Screenshots' },
             ] as const
           ).map((ch) => (
             <button
@@ -328,6 +338,204 @@ endoutlinepolygon(outlinecolor);`}</pre>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {chapter === 'savers' && (
+          <div>
+            <h2 style={{ margin: '0 0 8px 0', color: '#1b3556', fontStyle: 'italic' }}>
+              Chapter 5: Screen Savers, screen_blanker and ElectroPaint
+            </h2>
+            <p>
+              After the configured idle period the IRIX desktop handed the display to{' '}
+              <code>screen_blanker</code>, which ran one of the installed screen saver modules.
+              Modules are ordinary IRIS GL programs shown by display name under{' '}
+              <b>Toolchest &rarr; Desktop &rarr; Customize &rarr; Screen Saver</b>; that menu is why
+              third party saver packages such as the famous <i>HayeSavers</i> could simply be dropped
+              onto a machine and picked up.
+            </p>
+            <table style={{ borderCollapse: 'collapse', fontSize: '12px', margin: '6px 0' }}>
+              <tbody>
+                {[
+                  ['Module', 'File', 'What it does'],
+                  ['ElectroPaint', '/usr/lib/screens/electropaint', 'The famous one: triangles and squares that wheel, spin, flip and fold in an endless colour-shifting pattern.'],
+                  ['Hopalong', '/usr/lib/screens/spaceplants', 'Plane fractal point orbits ("space plants"), grown one point at a time from a 1986 Scientific American article.'],
+                  ['Bounce', '/usr/lib/screens/bounce', 'One of the classic SGI demos: a lit rubber ball squashing across a checkerboard floor.'],
+                  ['Blank', '/usr/lib/screens/blank', 'Plain blanker, used by the console lock and the monitor power saving mode.'],
+                ].map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        style={{
+                          border: '1px solid #b9b4a6',
+                          padding: '3px 7px',
+                          background: i === 0 ? '#e6e1d3' : undefined,
+                          fontWeight: i === 0 ? 700 : undefined,
+                          fontFamily: j === 1 ? 'monospace' : undefined,
+                        }}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3 style={{ color: '#1b3556', fontStyle: 'italic', margin: '10px 0 4px' }}>
+              ElectroPaint (TM), 1986, David A. Tristram
+            </h3>
+            <p>
+              ElectroPaint shipped in two flavours: the screen saver, and an interactive version
+              launched as <code>ep -c</code> which attached a Panel Library control panel. The
+              artwork is a flock of flat-shaded, alpha blended polys; the choreography comes from an
+              ASCII animation script (<code>actset:</code>, <code>duration:</code>,{' '}
+              <code>variance:</code>, <code>seqloop:</code>) which IRIX 6.5 shipped as a default that
+              could be dumped and read back. Without the script the saver sits still.
+            </p>
+            <p>
+              Every slider is a Panel Library <i>multi-slider</i> widget: an <b>R</b> reset button, an{' '}
+              <b>X</b> toggle between <i>wrap</i> and <i>bounce</i>, the main trough, and a little{' '}
+              <b>sld</b> sub-slider underneath that animates the main value:
+            </p>
+            <ul style={{ paddingLeft: '20px', margin: '4px 0' }}>
+              <li>
+                <code>whl</code> wheel &middot; <code>spn</code> spin &middot; <code>flp</code>{' '}
+                flip &middot; <code>arm</code> arm &middot; <code>wrst</code> wrist &middot;{' '}
+                <code>twst</code> twist &mdash; the six types of rotation
+              </li>
+              <li>
+                <code>sz</code> size &middot; <code>zoom</code> camera push &middot;{' '}
+                <code>spd</code> speed
+              </li>
+              <li>
+                <code>n</code> maximum visible triangles &middot; <code>rat</code> colour change rate
+                &middot; <code>rng</code> colormap range
+              </li>
+            </ul>
+            <p style={{ fontSize: '12px' }}>
+              Later IRIS GT versions added lighting, alpha blending and RGB mode; the first versions
+              were colormapped. In this simulator both the screen saver and <code>ep -c</code> run the
+              same engine, so the flock you see in the panel preview is the flock that fills the
+              screen when the display blanks.
+            </p>
+          </div>
+        )}
+
+        {chapter === 'wavefront' && (
+          <div>
+            <h2 style={{ margin: '0 0 8px 0', color: '#1b3556', fontStyle: 'italic' }}>
+              Chapter 6: Wavefront Explorer &mdash; the Maya predecessor
+            </h2>
+            <p>
+              Wavefront Technologies shipped <b>The Advanced Visualizer</b> (TAV), a modular suite of
+              small IRIS GL programs: <i>Model</i>, <i>Paint</i>, <i>Property</i>,{' '}
+              <i>Dynamation</i>, <i>Kinemation</i>, <i>Preview</i>, <i>Composer</i> and{' '}
+              <i>fcheck</i>. In 1993 Silicon Graphics bought Thomson Digital Images and folded their{' '}
+              <i>Explore</i> package into the line; in February 1995 SGI bought both Alias and
+              Wavefront and created <b>Alias|Wavefront</b>. The next generation animation system that
+              grew out of PowerAnimator and Wavefront Explorer was announced as <b>Maya</b> in 1998.
+            </p>
+            <p>Interface ideas that travelled from Explore into Maya, and that this window reproduces:</p>
+            <ul style={{ paddingLeft: '20px', margin: '4px 0' }}>
+              <li>
+                <b>Gestural (radial) menus</b> &mdash; hold the right mouse button in the viewport and
+                flick toward the module you want. The late Maya <i>marking menus</i> are the same idea.
+              </li>
+              <li>
+                <b>Shader-first asset organisation</b> &mdash; you assign a material by dropping
+                geometry underneath the shader rather than the shader onto the geometry. This inverted
+                hierarchy reappeared in Maya&rsquo;s Hypershade.
+              </li>
+              <li>
+                <b>Deformers as operators</b> &mdash; bend, twist and taper are applied over the hull
+                instead of being baked into the vertices.
+              </li>
+              <li>
+                <b>IPR-style interactive shading</b> and 24 fps video playback of a keyframed
+                timeline.
+              </li>
+            </ul>
+            <table style={{ borderCollapse: 'collapse', fontSize: '12px', margin: '6px 0' }}>
+              <tbody>
+                {[
+                  ['Wavefront module', 'Explorer 2.0 equivalent'],
+                  ['Modeler / director (TAV)', 'Model tool: primitives, deformers, scene object list'],
+                  ['Property / IPR', 'Shade tool: materials, diffuse, specular, shine, transparency'],
+                  ['Kinemation', 'Animate tool: rotation channels, keyframes, 24 fps timeline'],
+                  ['Preview / Display', 'Render tool: resolution, quality, frame output to XFS'],
+                ].map((row, i) => (
+                  <tr key={i}>
+                    {row.map((cell, j) => (
+                      <td
+                        key={j}
+                        style={{
+                          border: '1px solid #b9b4a6',
+                          padding: '3px 7px',
+                          background: i === 0 ? '#e6e1d3' : undefined,
+                          fontWeight: i === 0 ? 700 : undefined,
+                        }}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: '12px' }}>
+              The <i>Piston Assembly</i> in the primitive menu is there because Wavefront&rsquo;s own
+              SGI demo reel modelled a machined piston in the Advanced Visualizer to show off
+              Colour, Property and the modeler&rsquo;s hull operations.
+            </p>
+          </div>
+        )}
+
+        {chapter === 'screenshots' && (
+          <div>
+            <h2 style={{ margin: '0 0 8px 0', color: '#1b3556', fontStyle: 'italic' }}>
+              Chapter 7: Real IRIX Screenshots shipped with this simulator
+            </h2>
+            <p>
+              Genuine captures of IRIX 6.5 machines are installed in{' '}
+              <code>/usr/people/guest/screenshots</code> on this workstation and can be opened from the
+              File Manager Content Viewer, from the <b>Real IRIX Screenshot Reference Gallery</b> (or
+              with the <code>screenshots</code> command in Winterm). They record the details this
+              simulation was tuned against:
+            </p>
+            <ul style={{ paddingLeft: '20px', margin: '4px 0' }}>
+              <li>
+                Toolchest title bar colour, row height and the 3D drawer cascade glyphs, plus the real
+                <i> Desktop &rarr; Customize</i> menu order including <i>Screen Saver</i>,{' '}
+                <i>Environment Setup</i> and <i>Set Hot Spot</i>.
+              </li>
+              <li>
+                Desks Overview (<code>ov</code>) with Desk/Main/Global panes, and the teal stippled
+                desktop pattern used by several colour schemes.
+              </li>
+              <li>
+                ViewKit widget dressings &mdash; the menu bar order (Application, Edit, Lists, Busy,
+                Dialogs, Preferences&hellip;), the <i>SgBusyPopup</i> &ldquo;Wait a bit.&rdquo; dialog,
+                mauve completion fields and diamond preference toggles. This is the toolkit
+                Alias|Wavefront built on.
+              </li>
+              <li>
+                The file window: mauve path bar, the thumbwheel roller that scales vector icons
+                continuously, and the lower Content Viewer pane previewing images &mdash; which IRIX
+                did in 1993.
+              </li>
+              <li>
+                <code>fsn</code>, the 3D File System Navigator, with its green ground plane,
+                directory pedestals, spotlight and age legend.
+              </li>
+              <li>
+                ElectroPaint itself, mid-flock, showing flat-shaded saturated polys on black.
+              </li>
+            </ul>
+            <p style={{ fontSize: '12px' }}>
+              Each capture keeps its source and credit with it &mdash; open one in the gallery to see
+              where it came from.
+            </p>
           </div>
         )}
 

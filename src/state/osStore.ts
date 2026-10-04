@@ -1,4 +1,6 @@
 import { IRIX_ICON_LIBRARY } from '../icons/irixIconSet';
+import { IRIX_REFERENCE_SCREENSHOTS } from '../reference/irixScreenshots';
+import { EP_DEFAULT_SCRIPT } from '../screensaver/electropaint';
 
 export type WorkstationProfileId = 'octane2' | 'o2' | 'indy' | 'onyx2';
 
@@ -245,6 +247,11 @@ export const SGI_COLOR_SCHEMES: Record<ColorSchemeId, SgiColorScheme> = {
 
 export type AppId =
   | 'winterm'
+  | 'screensaver'
+  | 'electropaint'
+  | 'explorer'
+  | 'reference'
+  | 'fcheck'
   | 'gr_osview'
   | 'icon_catalog'
   | 'iconsmith'
@@ -289,8 +296,43 @@ export interface VfsNode {
   owner: string;
   tagHex: string;
   appId?: AppId;
+  /** for real reference screenshots shipped in /usr/people/guest/screenshots */
+  imageUrl?: string;
   content?: string;
 }
+
+/** The default ElectroPaint choreography script, as shipped in ~guest */
+const ELECTROPAINT_SCRIPT_TEXT = EP_DEFAULT_SCRIPT;
+
+const WAVEFRONT_README_TEXT = `WAVEFRONT EXPLORER 2.0 -- release notes
+=========================================
+Explorer is the modelling and animation module of the Wavefront product line,
+the successor to The Advanced Visualizer (TAV) and the merged TDI Explore /
+Wavefront code base.  It runs on Silicon Graphics IRIS workstations using
+IRIS GL, and shares its scene format with Modeler, Property, Dynamation,
+Kinemation, Preview and Composer.
+
+NEW IN 2.0
+----------
+  o  Gestural (radial) menus: hold the right mouse button in the viewport and
+     flick in the direction of the module you want.
+  o  Shader-first asset organisation: assign a material to a hull by dropping
+     the hull underneath the shader in the scene editor.
+  o  Deformers as operators: bend, twist and taper without baking the hull.
+  o  Interactive Photorealistic Rendering style feedback while a material is
+     being tuned.
+  o  Keyframes on rotation channels with 24 fps playback to the video deck.
+
+NOTES
+-----
+Explorer's interface was designed for the three button SGI mouse:
+  left   - tool / select in the viewport
+  middle - camera tumble and dolly (hold and drag)
+  right  - gestural menu
+
+The next generation animation system built on PowerAnimator and Explorer will
+be announced separately.  Scene files written here will load in it.
+`;
 
 export const INITIAL_VFS_NODES: VfsNode[] = [
   // Root directories
@@ -595,6 +637,237 @@ QUICK GUIDE TO THIS WORKSTATION:
     tagHex: '0x00004010',
     appId: 'netscape',
   },
+
+  // Screen saver modules — screen_blanker picked one of these up on idle
+  {
+    path: '/usr/lib/screens',
+    name: 'screens',
+    type: 'dir',
+    iconId: 'folder',
+    size: 512,
+    mtime: 'Jun 15 1998',
+    permissions: 'drwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00000001',
+  },
+  {
+    path: '/usr/lib/screens/electropaint',
+    name: 'electropaint',
+    type: 'exec',
+    iconId: 'electropaint',
+    size: 96256,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x000090A0',
+    appId: 'electropaint',
+  },
+  {
+    path: '/usr/lib/screens/spaceplants',
+    name: 'spaceplants',
+    type: 'exec',
+    iconId: 'screensaver',
+    size: 41984,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x000090A1',
+    appId: 'screensaver',
+  },
+  {
+    path: '/usr/lib/screens/bounce',
+    name: 'bounce',
+    type: 'exec',
+    iconId: 'showcase',
+    size: 73728,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x000090A2',
+    appId: 'screensaver',
+  },
+  {
+    path: '/usr/sbin/screen_blanker',
+    name: 'screen_blanker',
+    type: 'exec',
+    iconId: 'screensaver',
+    size: 32768,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00008030',
+    appId: 'screensaver',
+  },
+  {
+    path: '/usr/sbin/ep',
+    name: 'ep',
+    type: 'exec',
+    iconId: 'electropaint',
+    size: 96256,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x000090A0',
+    appId: 'electropaint',
+  },
+  {
+    path: '/usr/people/guest/.ep_script',
+    name: '.ep_script',
+    type: 'file',
+    iconId: 'document',
+    size: 2140,
+    mtime: 'Sep 30 22:14',
+    permissions: '-rw-r--r--',
+    owner: 'guest',
+    tagHex: '0x00000100',
+    appId: 'jot',
+    content: ELECTROPAINT_SCRIPT_TEXT,
+  },
+
+  // Wavefront / Alias|Wavefront product tree (the Maya predecessor)
+  {
+    path: '/usr/local',
+    name: 'local',
+    type: 'dir',
+    iconId: 'folder',
+    size: 512,
+    mtime: 'Jun 15 1998',
+    permissions: 'drwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00000001',
+  },
+  {
+    path: '/usr/local/wave',
+    name: 'wave',
+    type: 'dir',
+    iconId: 'folder',
+    size: 4096,
+    mtime: 'Mar 12 1996',
+    permissions: 'drwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00000001',
+  },
+  {
+    path: '/usr/local/wave/explorer',
+    name: 'explorer',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 6291456,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A100',
+    appId: 'explorer',
+  },
+  {
+    path: '/usr/local/wave/bin/director',
+    name: 'director',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 3145728,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A100',
+    appId: 'explorer',
+  },
+  {
+    path: '/usr/local/wave/Modeler',
+    name: 'Modeler',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 2097152,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A100',
+    appId: 'explorer',
+  },
+  {
+    path: '/usr/local/wave/Property',
+    name: 'Property',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A101',
+    appId: 'explorer',
+  },
+  {
+    path: '/usr/local/wave/WAVEFRONT_Explorer_README',
+    name: 'WAVEFRONT_Explorer_README',
+    type: 'file',
+    iconId: 'document',
+    size: 3120,
+    mtime: 'Mar 12 1996',
+    permissions: '-rw-r--r--',
+    owner: 'root',
+    tagHex: '0x00000100',
+    appId: 'jot',
+    content: WAVEFRONT_README_TEXT,
+  },
+  {
+    path: '/usr/local/wave/data/explorer_scene.obj',
+    name: 'explorer_scene.obj',
+    type: 'file',
+    iconId: 'document',
+    size: 5120,
+    mtime: 'Mar 12 1996',
+    permissions: '-rw-r--r--',
+    owner: 'guest',
+    tagHex: '0x00000100',
+    appId: 'explorer',
+    content: `# Wavefront OBJ geometry — the scene opened by the Explorer module
+# (Wavefront's polygon format, the same .obj the industry still uses)
+v  0.000000  1.200000  0.000000
+v -0.550000  0.000000  0.550000
+...
+# The Explorer scene graph is stored separately as a .wff directory of
+# hull / patch / shader / camera references.  Edit the model here, then
+# save back through the Object -> Save menu.`,
+  },
+  {
+    path: '/usr/people/guest/renders',
+    name: 'renders',
+    type: 'dir',
+    iconId: 'folder',
+    size: 512,
+    mtime: 'Oct 03 18:22',
+    permissions: 'drwxr-xr-x',
+    owner: 'guest',
+    tagHex: '0x00000001',
+  },
+
+  // Real IRIX reference screenshots (the captures this simulator was tuned against)
+  {
+    path: '/usr/people/guest/screenshots',
+    name: 'screenshots',
+    type: 'dir',
+    iconId: 'folder',
+    size: 8192,
+    mtime: 'Oct 03 20:00',
+    permissions: 'drwxr-xr-x',
+    owner: 'guest',
+    tagHex: '0x00000001',
+  },
+  ...IRIX_REFERENCE_SCREENSHOTS.map((shot) => ({
+    path: `/usr/people/guest/screenshots/${shot.file}`,
+    name: shot.file,
+    type: 'file' as const,
+    iconId: 'reference',
+    size: 48000,
+    mtime: 'Oct 03 20:00',
+    permissions: '-rw-r--r--',
+    owner: 'guest',
+    tagHex: '0x00020002',
+    appId: 'reference' as AppId,
+    imageUrl: `/screenshots/${shot.file}`,
+    content: `${shot.title}\n\nSource:  ${shot.source}\nCredit:  ${shot.credit}\nLicence: ${shot.license}\n\nEvidence for:\n${shot.shows
+      .map((l) => `  - ${l}`)
+      .join('\n')}`,
+  })),
 
   // Populate /usr/lib/filetype/iconlib with actual .fti files from our library!
   ...Object.values(IRIX_ICON_LIBRARY).map((iconDef) => ({

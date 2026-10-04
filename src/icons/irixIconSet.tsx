@@ -1561,6 +1561,227 @@ bgnline();
 endline();
 `,
   },
+
+  // 25. ElectroPaint (the IRIX screen saver, "dancing polygons")
+  electropaint: {
+    id: 'electropaint',
+    name: 'ElectroPaint',
+    filename: 'electropaint.fti',
+    category: 'SystemTools',
+    supertype: 'Executable',
+    useMagicCarpet: true,
+    tagHex: '0x000090A0',
+    legend: 'ElectroPaint (TM) — the SGI/IRIX screen saver written by David A. Tristram (1986)',
+    ftiScript: `
+# SGI ElectroPaint Badge: a ring of dancing triangles and squares (.fti)
+# Black IRIS GL screen behind the flock
+color(shadowcolor);
+bgnpolygon();
+  vertex(6.00, 8.00);
+  vertex(94.00, 8.00);
+  vertex(94.00, 92.00);
+  vertex(6.00, 92.00);
+endpolygon();
+
+# Outer ring of the shell (the "wheel" of polygons)
+color(-51);
+bgnoutlinepolygon();
+  vertex(50.00, 80.00);
+  vertex(72.00, 66.00);
+  vertex(78.00, 42.00);
+  vertex(64.00, 22.00);
+  vertex(38.00, 20.00);
+  vertex(22.00, 38.00);
+  vertex(26.00, 64.00);
+endoutlinepolygon(outlinecolor);
+
+# individual polygons wheeling around the ring
+color(-68);
+bgnoutlinepolygon();
+  vertex(44.00, 74.00);
+  vertex(58.00, 70.00);
+  vertex(52.00, 60.00);
+endoutlinepolygon(outlinecolor);
+
+color(-1);
+bgnoutlinepolygon();
+  vertex(70.00, 62.00);
+  vertex(76.00, 50.00);
+  vertex(64.00, 50.00);
+endoutlinepolygon(outlinecolor);
+
+color(-34);
+bgnoutlinepolygon();
+  vertex(68.00, 38.00);
+  vertex(60.00, 26.00);
+  vertex(52.00, 36.00);
+endoutlinepolygon(outlinecolor);
+
+color(-85);
+bgnoutlinepolygon();
+  vertex(44.00, 22.00);
+  vertex(30.00, 28.00);
+  vertex(40.00, 34.00);
+endoutlinepolygon(outlinecolor);
+
+color(-102);
+bgnoutlinepolygon();
+  vertex(24.00, 42.00);
+  vertex(30.00, 54.00);
+  vertex(38.00, 46.00);
+endoutlinepolygon(outlinecolor);
+
+# inner squares (the squares flavour of the saver)
+color(-247);
+bgnpolygon();
+  vertex(44.00, 52.00);
+  vertex(56.00, 52.00);
+  vertex(56.00, 62.00);
+  vertex(44.00, 62.00);
+endpolygon();
+`,
+  },
+
+  // 26. Screen Saver control panel module
+  screensaver: {
+    id: 'screensaver',
+    name: 'Screen Saver',
+    filename: 'screensaver.fti',
+    category: 'ControlPanels',
+    supertype: 'System',
+    useMagicCarpet: false,
+    tagHex: '0x00008030',
+    legend: 'IRIX Screen Saver / screen_blanker control panel module',
+    ftiScript: `
+# SGI Screen Saver Badge: blanked monitor with drifting polygons (.fti)
+color(shadowcolor);
+bgnpolygon();
+  vertex(10.00, 10.00);
+  vertex(74.00, 10.00);
+  vertex(68.00, 20.00);
+  vertex(16.00, 20.00);
+endpolygon();
+
+# Monitor bezel
+color(-247);
+bgnoutlinepolygon();
+  vertex(12.00, 20.00);
+  vertex(88.00, 20.00);
+  vertex(88.00, 76.00);
+  vertex(12.00, 76.00);
+endoutlinepolygon(outlinecolor);
+
+# Blanked screen (black)
+color(0);
+bgnpolygon();
+  vertex(17.00, 25.00);
+  vertex(83.00, 25.00);
+  vertex(83.00, 71.00);
+  vertex(17.00, 71.00);
+endpolygon();
+
+# the saver's geometry drifting across the blanked screen
+color(-34);
+bgnoutlinepolygon();
+  vertex(30.00, 58.00);
+  vertex(44.00, 60.00);
+  vertex(36.00, 48.00);
+endoutlinepolygon(outlinecolor);
+
+color(-85);
+bgnoutlinepolygon();
+  vertex(52.00, 44.00);
+  vertex(68.00, 50.00);
+  vertex(58.00, 33.00);
+endoutlinepolygon(outlinecolor);
+
+color(-68);
+bgnoutlinepolygon();
+  vertex(42.00, 36.00);
+  vertex(56.00, 30.00);
+  vertex(48.00, 26.00);
+endoutlinepolygon(outlinecolor);
+
+# stand
+color(-136);
+bgnoutlinepolygon();
+  vertex(46.00, 20.00);
+  vertex(54.00, 20.00);
+  vertex(54.00, 12.00);
+  vertex(46.00, 12.00);
+endoutlinepolygon(outlinecolor);
+`,
+  },
+
+  // 27. Wavefront Explorer / Advanced Visualizer (Maya predecessor)
+  explorer: {
+    id: 'explorer',
+    name: 'explorer',
+    filename: 'wavefront.explorer.fti',
+    category: 'Applications',
+    supertype: 'Executable',
+    useMagicCarpet: true,
+    tagHex: '0x0000A100',
+    legend:
+      'Wavefront Explorer / The Advanced Visualizer — the modelling and animation system that led to Maya',
+    ftiScript: `
+# Wavefront Explorer Badge: a shaded polygon hull on a wire grid (.fti)
+# ground grid of the modeler viewport
+color(shadowcolor);
+bgnpolygon();
+  vertex(8.00, 12.00);
+  vertex(92.00, 12.00);
+  vertex(92.00, 40.00);
+  vertex(8.00, 40.00);
+endpolygon();
+
+color(-34);
+bgnline();
+  vertex(14.00, 22.00);
+  vertex(88.00, 22.00);
+endline();
+bgnline();
+  vertex(20.00, 30.00);
+  vertex(84.00, 30.00);
+endline();
+
+# wireframe hull being modelled (left face)
+color(-102);
+bgnoutlinepolygon();
+  vertex(28.00, 40.00);
+  vertex(52.00, 30.00);
+  vertex(52.00, 58.00);
+  vertex(28.00, 68.00);
+endoutlinepolygon(outlinecolor);
+
+# right face
+color(-68);
+bgnoutlinepolygon();
+  vertex(52.00, 30.00);
+  vertex(76.00, 40.00);
+  vertex(76.00, 68.00);
+  vertex(52.00, 58.00);
+endoutlinepolygon(outlinecolor);
+
+# top cap, lit
+color(iconcolor);
+bgnoutlinepolygon();
+  vertex(28.00, 68.00);
+  vertex(52.00, 58.00);
+  vertex(76.00, 68.00);
+  vertex(52.00, 80.00);
+endoutlinepolygon(outlinecolor);
+
+# control point of a CV curve
+color(-247);
+bgnpolygon();
+  vertex(48.00, 84.00);
+  vertex(56.00, 84.00);
+  vertex(56.00, 92.00);
+  vertex(48.00, 92.00);
+endpolygon();
+`,
+  },
 };
 
 export interface IrixVectorIconProps {
