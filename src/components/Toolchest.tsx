@@ -11,6 +11,8 @@ interface ToolchestProps {
   onSelectColorScheme: (id: ColorSchemeId) => void;
   onSwitchDesk: (desk: DeskId) => void;
   onToggleSound: () => void;
+  quickLaunchBar: boolean;
+  onToggleQuickLaunchBar: () => void;
   onEmptyDumpster: () => void;
   onOpenPromMonitor: () => void;
   onOpenClogin: () => void;
@@ -35,6 +37,8 @@ export const Toolchest: React.FC<ToolchestProps> = ({
   onSelectColorScheme,
   onSwitchDesk,
   onToggleSound,
+  quickLaunchBar,
+  onToggleQuickLaunchBar,
   onEmptyDumpster,
   onOpenPromMonitor,
   onOpenClogin,
@@ -120,6 +124,10 @@ export const Toolchest: React.FC<ToolchestProps> = ({
             {
               label: `Audio Cues: ${soundEnabled ? 'Enabled (ON)' : 'Muted (OFF)'}`,
               action: onToggleSound,
+            },
+            {
+              label: `Quick Launch Bar: ${quickLaunchBar ? 'Shown' : 'Hidden'}`,
+              action: onToggleQuickLaunchBar,
             },
           ],
         },

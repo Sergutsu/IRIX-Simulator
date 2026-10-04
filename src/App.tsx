@@ -11,6 +11,15 @@ import {
   WORKSTATION_PROFILES,
   WorkstationProfileId,
 } from './state/osStore';
+import {
+  ScreenMetrics,
+  clampWindow,
+  fitScreen,
+  placeWindow,
+  screenMetrics,
+  screenScale,
+  setScreenMetrics,
+} from './state/screen';
 import { IrixVectorIcon } from './icons/irixIconSet';
 import { Toolchest } from './components/Toolchest';
 import { DesksOverview } from './components/DesksOverview';
@@ -287,9 +296,43 @@ export const App: React.FC = () => {
   const [selectedDesktopIcon, setSelectedDesktopIcon] = useState<string | null>(null);
   const [launchingDesktopId, setLaunchingDesktopId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [screen, setScreen] = useState<ScreenMetrics>(screenMetrics);
+  // The old always-on quick-launch bar sat across the bottom of the desktop.
+  // It is off by default now; Toolchest -> Desktop can bring it back.
+  const [showQuickLaunchBar, setShowQuickLaunchBar] = useState(false);
+
+  // The desktop is laid out in the workstation's own pixels and scaled as a
+  // whole to the browser window, so every window fits the display it is on.
+  useEffect(() => {
+    const update = () => {
+      const next = fitScreen(window.innerWidth, window.innerHeight);
+      setScreenMetrics(next);
+      setScreen(next);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Keep window frames inside the framebuffer when the display changes size.
+  useEffect(() => {
+    setWindows((prev) =>
+      prev.map((w) => {
+        const p = clampWindow(w.x, w.y, w.width, w.height);
+        return p.x === w.x && p.y === w.y ? w : { ...w, ...p };
+      })
+    );
+  }, [screen.width, screen.height]);
 
   const workstation = WORKSTATION_PROFILES[workstationId];
   const colorScheme = SGI_COLOR_SCHEMES[colorSchemeId];
+
+  // Desktop icon column: one row per shortcut, sized to the framebuffer.
+  const iconCell = Math.max(
+    48,
+    Math.min(84, (screen.height - 30) / Math.max(1, DESKTOP_SHORTCUTS.length))
+  );
+  const iconSize = Math.round(iconCell * 0.66);
 
   const bringToFront = (id: string) => {
     setActiveWinId(id);
@@ -340,14 +383,15 @@ export const App: React.FC = () => {
 
       const def = APP_DEFAULTS[appId];
       const offset = (prev.length % 6) * 24;
+      const at = placeWindow(def.width, def.height, offset);
       const newWin: WindowInstance = {
         id: `win_${appId}_${Date.now()}`,
         appId,
         title: def.title,
         iconId: def.iconId,
         deskId: activeDesk,
-        x: Math.min(window.innerWidth - def.width - 110, 155 + offset),
-        y: Math.min(window.innerHeight - def.height - 50, 28 + offset),
+        x: at.x,
+        y: at.y,
         width: def.width,
         height: def.height,
         zIndex: maxZ + 1,
@@ -584,7 +628,9 @@ export const App: React.FC = () => {
     <div
       onContextMenu={(e) => {
         e.preventDefault();
-        setContextMenu({ x: e.clientX, y: e.clientY });
+        // the desktop is scaled as a whole: remember the click in framebuffer pixels
+        const s = screenScale();
+        setContextMenu({ x: e.clientX / s, y: e.clientY / s });
       }}
       onClick={() => {
         if (contextMenu) setContextMenu(null);
@@ -592,12 +638,26 @@ export const App: React.FC = () => {
       style={{
         width: '100vw',
         height: '100vh',
-        background: colorScheme.desktopBg,
+        background: '#000000',
         position: 'relative',
         overflow: 'hidden',
         userSelect: 'none',
       }}
     >
+      {/* The workstation framebuffer: everything inside is in virtual pixels */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: `${screen.width}px`,
+          height: `${screen.height}px`,
+          transform: `scale(${screen.scale})`,
+          transformOrigin: 'top left',
+          background: colorScheme.desktopBg,
+          overflow: 'hidden',
+        }}
+      >
       {/* 4Dwm root window stipple pattern */}
       <div
         className="irix-stipple"
@@ -607,6 +667,8 @@ export const App: React.FC = () => {
       {/* Top-Left SGI Toolchest Menu */}
       <Toolchest
         activeDesk={activeDesk}
+        quickLaunchBar={showQuickLaunchBar}
+        onToggleQuickLaunchBar={() => setShowQuickLaunchBar((v) => !v)}
         colorScheme={colorScheme}
         selectedDesktopIcon={selectedDesktopIcon}
         soundEnabled={soundEnabled}
@@ -631,18 +693,21 @@ export const App: React.FC = () => {
           />
         ))}
 
-      {/* Right-Edge Column of Authentic SGI Isometric Vector Desktop Icons */}
+      {/* Right-Edge Column of Authentic SGI Isometric Vector Desktop Icons.
+          The row height follows the framebuffer, so on a short display the
+          icons shrink to stay in one column instead of wrapping behind the
+          windows. */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'absolute',
           right: '14px',
           top: '12px',
-          bottom: '44px',
+          bottom: '14px',
           display: 'grid',
           gridAutoFlow: 'column',
-          gridTemplateRows: 'repeat(auto-fill, 84px)',
-          gap: '6px 14px',
+          gridTemplateRows: `repeat(auto-fill, ${iconCell}px)`,
+          gap: '2px 14px',
           direction: 'rtl',
           zIndex: 6,
         }}
@@ -682,7 +747,7 @@ export const App: React.FC = () => {
                 iconId={sc.iconId}
                 useMagicCarpet={sc.useMagicCarpet}
                 state={vState}
-                size={54}
+                size={iconSize}
               />
               <span
                 style={{
@@ -916,7 +981,9 @@ export const App: React.FC = () => {
         onFocusWindow={bringToFront}
       />
 
-      {/* Bottom-Right Workstation Status & Quick-Jump Bar */}
+      {/* Bottom-Right Workstation Status & Quick-Jump Bar (off by default;
+          Toolchest -> Desktop -> Quick Launch Bar brings it back) */}
+      {showQuickLaunchBar && (
       <div
         style={{
           position: 'absolute',
@@ -993,6 +1060,7 @@ export const App: React.FC = () => {
           📘 IRIX 6.5 Specs
         </button>
       </div>
+      )}
 
       {/* Right-Click 4Dwm Root Desktop Menu */}
       {contextMenu && (
@@ -1021,6 +1089,9 @@ export const App: React.FC = () => {
             }}
           >
             IRIX Interactive Desktop
+            <div style={{ fontSize: '10px', fontStyle: 'normal', fontWeight: 400, opacity: 0.85 }}>
+              {workstation.name} · {workstation.ipArch} · {workstation.osRelease}
+            </div>
           </div>
           <div
             className="sgi-menu-item"
@@ -1124,6 +1195,9 @@ export const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      </div>
+      {/* ---- end of the scaled framebuffer: what follows covers the real display ---- */}
 
       {/* screen_blanker: the blanked display with the screen saver running */}
       {blanked && (

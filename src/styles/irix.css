@@ -37,6 +37,22 @@ body,
   box-shadow: inset 1px 1px 0 #555555, inset -1px -1px 0 #f0f0f0;
 }
 
+/* SGI Motif TextField — white sunken well, black text (see the lock screen) */
+.sgi-field {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #555555;
+  box-shadow: inset 1px 1px 0 #6f6f6f, inset -1px -1px 0 #f0f0f0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 11.5px;
+  padding: 2px 4px;
+  outline: none;
+}
+
+.sgi-field:focus {
+  outline: 1px solid #7a96b8;
+}
+
 /* SGI Motif Menu Bar */
 .sgi-menubar {
   height: 22px;

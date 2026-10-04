@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { DeskId, SgiColorScheme, WindowInstance } from '../state/osStore';
+import { clampWindow, screenMetrics, screenScale } from '../state/screen';
 import { irixAudio } from '../sound/irixAudio';
 
 interface WindowFrameProps {
@@ -50,9 +51,15 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     const origY = win.y;
 
     const onMove = (ev: MouseEvent) => {
-      const nx = Math.max(0, Math.min(window.innerWidth - 120, origX + (ev.clientX - startX)));
-      const ny = Math.max(0, Math.min(window.innerHeight - 60, origY + (ev.clientY - startY)));
-      onMoveResize(win.id, { x: nx, y: ny });
+      // the desktop is scaled as a whole, so screen pixels -> framebuffer pixels
+      const s = screenScale();
+      const p = clampWindow(
+        origX + (ev.clientX - startX) / s,
+        origY + (ev.clientY - startY) / s,
+        win.width,
+        win.height
+      );
+      onMoveResize(win.id, p);
     };
 
     const onUp = () => {
@@ -80,8 +87,9 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     const origH = win.height;
 
     const onMove = (ev: MouseEvent) => {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
+      const s = screenScale();
+      const dx = (ev.clientX - startX) / s;
+      const dy = (ev.clientY - startY) / s;
       const patch: Partial<Pick<WindowInstance, 'x' | 'y' | 'width' | 'height'>> = {};
 
       if (dir.includes('e')) {
@@ -110,13 +118,14 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
   const borderBg = isActive ? colorScheme.activeTitleBg : colorScheme.inactiveTitleBg;
   const titleText = isActive ? colorScheme.activeTitleText : colorScheme.inactiveTitleText;
 
+  const metrics = screenMetrics();
   const style: React.CSSProperties = win.maximized
     ? {
-        position: 'fixed',
+        position: 'absolute',
         left: '4px',
         top: '4px',
-        width: 'calc(100vw - 8px)',
-        height: 'calc(100vh - 8px)',
+        width: `${metrics.width - 8}px`,
+        height: `${metrics.height - 8}px`,
         zIndex: win.zIndex,
       }
     : {

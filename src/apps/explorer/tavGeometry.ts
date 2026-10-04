@@ -165,13 +165,15 @@ export function makeCylinder(radius = 0.5, height = 1.5, seg = 16, capped = true
   }
   for (let i = 0; i < seg; i++) {
     const nx = (i + 1) % seg;
-    faces.push([i, nx, seg + nx, seg + i]);
+    // wound so the surface normal points away from the axis
+    faces.push([i, seg + i, seg + nx, nx]);
   }
   if (capped) {
+    // bottom cap normal is -Y, top cap normal is +Y
     const bottom: number[] = [];
+    for (let i = 0; i < seg; i++) bottom.push(i);
     const top: number[] = [];
-    for (let i = seg - 1; i >= 0; i--) bottom.push(i);
-    for (let i = 0; i < seg; i++) top.push(seg + i);
+    for (let i = seg - 1; i >= 0; i--) top.push(seg + i);
     faces.push(bottom);
     faces.push(top);
   }
@@ -190,10 +192,11 @@ export function makeCone(radius = 0.6, height = 1.4, seg = 16): Mesh {
   verts.push([0, h, 0]);
   for (let i = 0; i < seg; i++) {
     const nx = (i + 1) % seg;
-    faces.push([i, nx, apex]);
+    faces.push([i, apex, nx]);
   }
+  // base faces -Y
   const base: number[] = [];
-  for (let i = seg - 1; i >= 0; i--) base.push(i);
+  for (let i = 0; i < seg; i++) base.push(i);
   faces.push(base);
   return { name: 'cone', verts, faces };
 }
@@ -215,7 +218,8 @@ export function makeTorus(R = 0.85, r = 0.32, segU = 20, segV = 10): Mesh {
   const idx = (iu: number, iv: number) => (iu % segU) * segV + (iv % segV);
   for (let iu = 0; iu < segU; iu++) {
     for (let iv = 0; iv < segV; iv++) {
-      faces.push([idx(iu, iv), idx(iu + 1, iv), idx(iu + 1, iv + 1), idx(iu, iv + 1)]);
+      // wound so normals point outward from the tube
+      faces.push([idx(iu, iv), idx(iu, iv + 1), idx(iu + 1, iv + 1), idx(iu + 1, iv)]);
     }
   }
   return { name: 'torus', verts, faces };
@@ -298,6 +302,65 @@ export function buildPrimitive(id: PrimitiveId): Mesh {
 /* ------------------------------------------------------------------ *
  * Deformers — the modeling operations of the era                      *
  * ------------------------------------------------------------------ */
+
+/**
+ * Newell's method face normal — robust for quads and facets that are not
+ * perfectly planar, and it follows the winding (outward for closed hulls).
+ */
+export function faceNormalOf(verts: Vec3[], face: number[]): Vec3 {
+  let nx = 0;
+  let ny = 0;
+  let nz = 0;
+  for (let i = 0; i < face.length; i++) {
+    const a = verts[face[i]];
+    const b = verts[face[(i + 1) % face.length]];
+    nx += (a[1] - b[1]) * (a[2] + b[2]);
+    ny += (a[2] - b[2]) * (a[0] + b[0]);
+    nz += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  const len = Math.hypot(nx, ny, nz) || 1;
+  return [nx / len, ny / len, nz / len];
+}
+
+/**
+ * Per-corner normals with a crease angle, which is how this was done in the
+ * era's modelers: faces that meet at a shallower angle than `creaseAngleDeg`
+ * share an averaged (smooth) normal, while sharper edges keep a hard one.
+ *
+ * The result is parallel to `faces`: one normal per corner, so a hard edge can
+ * carry two different normals at the same vertex.  A crease angle of 0 gives
+ * flat shading, 180 gives a fully smoothed hull.
+ */
+export function cornerNormals(
+  verts: Vec3[],
+  faces: number[][],
+  creaseAngleDeg = 45
+): Vec3[][] {
+  const fnormals = faces.map((f) => faceNormalOf(verts, f));
+  const cosLimit = Math.cos((Math.max(0, Math.min(180, creaseAngleDeg)) * Math.PI) / 180);
+  const incident: number[][] = verts.map(() => []);
+  faces.forEach((f, fi) => {
+    for (const vi of f) incident[vi].push(fi);
+  });
+  return faces.map((f, fi) => {
+    const fn = fnormals[fi];
+    return f.map((vi) => {
+      let x = 0;
+      let y = 0;
+      let z = 0;
+      for (const gi of incident[vi]) {
+        const gn = fnormals[gi];
+        // dot(fn, gn) >= cosLimit means the two faces are within the crease angle
+        if (gn[0] * fn[0] + gn[1] * fn[1] + gn[2] * fn[2] < cosLimit) continue;
+        x += gn[0];
+        y += gn[1];
+        z += gn[2];
+      }
+      const len = Math.hypot(x, y, z) || 1;
+      return [x / len, y / len, z / len] as Vec3;
+    });
+  });
+}
 
 export type DeformId = 'none' | 'bend' | 'twist' | 'taper';
 

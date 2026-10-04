@@ -69,8 +69,10 @@ export const IconCatalogApp: React.FC<IconCatalogAppProps> = ({
     activeTab === 'All .FTI'
       ? allIcons
       : activeTab === 'Applications'
-      ? allIcons.filter((ic) =>
-          ['iconsmith', 'jot', 'insight', 'showcase', 'netscape', 'winterm'].includes(ic.id)
+      ? allIcons.filter(
+          (ic) =>
+            ic.category === 'Applications' ||
+            ['iconsmith', 'jot', 'insight', 'showcase', 'netscape', 'winterm'].includes(ic.id)
         )
       : allIcons.filter((ic) => ic.category === activeTab);
 

@@ -23,6 +23,7 @@ import {
   DeformId,
 } from '../src/apps/explorer/tavGeometry';
 import { drawScene, objectRotationAt, ExplorerObject } from '../src/apps/WavefrontExplorerApp';
+import { MIN_SCREEN_H, MIN_SCREEN_W, clampWindow, fitScreen, placeWindow, setScreenMetrics } from '../src/state/screen';
 
 let problems = 0;
 const fail = (msg: string) => {
@@ -172,6 +173,70 @@ ok(`${PRIMITIVE_LIBRARY.length} primitives built, deformers finite`);
   const end = objectRotationAt(objects[0], 200);
   if (Math.abs(end[1] - 6.28) > 1e-6) fail('extrapolation past the last key is wrong');
   else ok('poses hold after the last keyframe');
+}
+
+/* ------------------------------------------------------------------ *
+ * Desktop display scaling                                             *
+ * ------------------------------------------------------------------ */
+console.log('Desktop display scaling');
+
+{
+  const cases: [number, number, number, number][] = [
+    // viewport, expected scale, expected framebuffer w, h
+    [1920, 1080, 1, 1920, 1080],
+    [1280, 800, 1, 1280, 800],
+    [1024, 700, 1, 1024, 700],
+    [1024, 620, 620 / 700, 1156, 700],
+    [800, 600, 0.78125, 1024, 768],
+  ];
+  let bad = 0;
+  for (const [vw, vh, scale, fw, fh] of cases) {
+    const m = fitScreen(vw, vh);
+    if (Math.abs(m.scale - scale) > 1e-6 || Math.abs(m.width - fw) > 1 || Math.abs(m.height - fh) > 1) {
+      fail(`fitScreen(${vw}, ${vh}) = ${m.scale.toFixed(4)} ${m.width}x${m.height}, expected ${scale.toFixed(4)} ${fw}x${fh}`);
+      bad++;
+    }
+    // the scaled framebuffer must cover the viewport exactly
+    if (Math.abs(m.width * m.scale - vw) > 1 || Math.abs(m.height * m.scale - vh) > 1) {
+      fail(`framebuffer does not fill the viewport: ${m.width * m.scale}x${m.height * m.scale} vs ${vw}x${vh}`);
+      bad++;
+    }
+    if (m.width < MIN_SCREEN_W || m.height < MIN_SCREEN_H) {
+      fail(`framebuffer ${m.width}x${m.height} is below the ${MIN_SCREEN_W}x${MIN_SCREEN_H} floor`);
+      bad++;
+    }
+  }
+  if (!bad) ok('framebuffer fills the viewport at 1920x1080, 1280x800, 1024x700, 1024x620 and 800x600');
+
+  // clamping keeps windows on screen at the smallest framebuffer
+  setScreenMetrics(fitScreen(800, 600));
+  const cases2: [number, number, number, number, number, number][] = [
+    // x, y, w, h, expected x, expected y
+    [900, 26, 530, 360, 486, 26],
+    [155, -40, 700, 600, 155, 0],
+    [-80, 400, 400, 300, 0, 400],
+  ];
+  let bad2 = 0;
+  for (const [x, y, w, h, ex, ey] of cases2) {
+    const p = clampWindow(x, y, w, h);
+    if (Math.abs(p.x - ex) > 1 || Math.abs(p.y - ey) > 1) {
+      fail(`clampWindow(${x}, ${y}, ${w}, ${h}) = ${p.x},${p.y}, expected ${ex},${ey}`);
+      bad2++;
+    }
+    if (p.x + Math.min(w, 1024) > 1024 + 1 || p.y + Math.min(h, 768) > 768 + 1) {
+      fail(`clamped window sticks out of the framebuffer: ${p.x}+${w}, ${p.y}+${h}`);
+      bad2++;
+    }
+  }
+  const at = placeWindow(900, 600, 0);
+  if (at.x + 900 > 1024 || at.y + 600 > 768) fail(`new window placed off screen at ${at.x},${at.y}`);
+  if (!bad2) ok('windows stay inside the framebuffer when placed, dragged and cascaded');
+
+  // 1:1 displays keep the requested framebuffer
+  setScreenMetrics(fitScreen(1920, 1080));
+  const big = placeWindow(900, 600, 48);
+  if (big.x <= 155) fail(`cascade did not step: ${big.x}`);
+  else ok(`cascade steps at 1:1 (155 -> ${big.x}) and stays on the display`);
 }
 
 console.log(problems ? `\n${problems} PROBLEM(S)` : '\nall checks passed');

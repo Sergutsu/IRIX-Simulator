@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { WindowInstance } from '../state/osStore';
+import { screenMetrics, screenScale } from '../state/screen';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import { irixAudio } from '../sound/irixAudio';
 
@@ -35,10 +36,13 @@ export const MinimizedTile: React.FC<MinimizedTileProps> = ({
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
         movedRef.current = true;
       }
+      // framebuffer pixels, like every other window coordinate
+      const s = screenScale();
+      const m = screenMetrics();
       onMoveTile(
         win.id,
-        Math.max(4, Math.min(window.innerWidth - 76, origX + dx)),
-        Math.max(4, Math.min(window.innerHeight - 76, origY + dy))
+        Math.max(4, Math.min(m.width - 76, origX + dx / s)),
+        Math.max(4, Math.min(m.height - 76, origY + dy / s))
       );
     };
 

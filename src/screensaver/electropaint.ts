@@ -157,8 +157,20 @@ export interface EpSlider extends EpSliderSpec {
   value: number;
   /** the little "sld" sub-slider position, drives value over time */
   sub: number;
+  /**
+   * true while the engine animates this act (the "sld" sub-slider drives it).
+   * Grabbing the trough or the sub-slider clears it: the value is then held
+   * where the user put it until `A` (auto) hands it back to the sequencer.
+   */
   auto: boolean;
+  /** user has taken this act by hand; the drive is suspended */
+  hold: boolean;
   highlight: number; // 0..1 fading pulse used by the UI when a script re-targets it
+}
+
+/** Keep the sub-slider out of the dead zone where it cannot move the value. */
+function nudgeSub(state: EpState, s: EpSlider) {
+  if (Math.abs(s.sub) < 0.12) s.sub = state.rand.next() < 0.5 ? -0.45 : 0.45;
 }
 
 export interface EpTriangle {
@@ -363,11 +375,14 @@ export function createEpState(opts?: {
   const rand = new Rand48(opts?.seed);
   const sliders = {} as Record<EpSliderId, EpSlider>;
   for (const spec of EP_SLIDERS) {
+    let sub = rand.range(-1, 1);
+    if (Math.abs(sub) < 0.12) sub = sub < 0 ? -0.45 : 0.45;
     sliders[spec.id] = {
       ...spec,
       value: spec.init,
-      sub: rand.range(-1, 1),
+      sub,
       auto: true,
+      hold: false,
       highlight: 0,
     };
   }
@@ -383,7 +398,7 @@ export function createEpState(opts?: {
     });
   }
   const acts = parseEpScript(opts?.script ?? EP_DEFAULT_SCRIPT);
-  return {
+  const state: EpState = {
     sliders,
     triangles,
     acts,
@@ -401,6 +416,10 @@ export function createEpState(opts?: {
     rand,
     triCount: 0,
   };
+  // The sequencer owns the acts from the first frame: without this the flock
+  // drifted uncontrolled until the second act came round.
+  startAct(state, 0);
+  return state;
 }
 
 /** Apply an act's slider targets (with the authentic "highlight" pulse). */
@@ -410,6 +429,9 @@ function applyAct(state: EpState, act: EpAct) {
     if (!s) continue;
     s.value = Math.max(s.min, Math.min(s.max, val));
     s.sub = state.rand.range(-1, 1);
+    nudgeSub(state, s);
+    s.auto = true;
+    s.hold = false;
     s.highlight = 1;
   }
   state.actName = act.name;
@@ -423,16 +445,56 @@ function startAct(state: EpState, index: number) {
   applyAct(state, act);
 }
 
-/** User interaction: nudge a slider (as if dragged in the ep -c panel). */
-export function setEpSlider(state: EpState, id: EpSliderId, value: number) {
+/** Start an act by index (used when a script is loaded from disk). */
+export function startEpAct(state: EpState, index: number) {
+  startAct(state, index);
+}
+
+/**
+ * User interaction: move a slider (as if dragged in the ep -c panel).
+ *
+ * `hold: true` is what a real drag does — the value stays where you put it
+ * instead of being pulled away by the sub-slider drive on the next frame.
+ */
+export function setEpSlider(state: EpState, id: EpSliderId, value: number, opts?: { hold?: boolean }) {
   const s = state.sliders[id];
   if (!s) return;
   s.value = Math.max(s.min, Math.min(s.max, value));
   s.highlight = 1;
+  if (opts?.hold) {
+    s.hold = true;
+    s.auto = false;
+  } else {
+    s.hold = false;
+  }
 }
 
+/** Dragging the small "sld" bar steers the drive by hand. */
+export function setEpSubSlider(state: EpState, id: EpSliderId, sub: number) {
+  const s = state.sliders[id];
+  if (!s) return;
+  s.sub = Math.max(-1, Math.min(1, sub));
+  s.hold = false;
+  s.auto = false;
+}
+
+/** `A` on a column: hand the act back to the sequencer, or freeze it. */
+export function setEpSliderAuto(state: EpState, id: EpSliderId, auto: boolean) {
+  const s = state.sliders[id];
+  if (!s) return;
+  s.auto = auto;
+  s.hold = !auto;
+  if (auto) nudgeSub(state, s);
+}
+
+/** `R` on a column: back to the home value, engine driving again. */
 export function resetEpSlider(state: EpState, id: EpSliderId) {
-  setEpSlider(state, id, EP_SLIDERS.find((s) => s.id === id)?.init ?? 0);
+  const s = state.sliders[id];
+  if (!s) return;
+  setEpSlider(state, id, EP_SLIDERS.find((x) => x.id === id)?.init ?? 0);
+  s.auto = true;
+  s.sub = state.rand.range(-1, 1);
+  nudgeSub(state, s);
 }
 
 export function toggleEpSliderMode(state: EpState, id: EpSliderId) {
@@ -441,10 +503,42 @@ export function toggleEpSliderMode(state: EpState, id: EpSliderId) {
   s.mode = s.mode === 'wrap' ? 'bounce' : 'wrap';
 }
 
+/** The `randomize` menu item: fresh values, drive running again. */
+export function randomizeEpSliders(state: EpState) {
+  for (const spec of EP_SLIDERS) {
+    setEpSlider(state, spec.id, state.rand.range(spec.min, spec.max));
+    const s = state.sliders[spec.id];
+    s.auto = true;
+    s.sub = state.rand.range(-1, 1);
+    nudgeSub(state, s);
+  }
+}
+
+/**
+ * Animation seconds per second of wall clock, for the current `spd`.
+ *
+ * The curve is deliberately steep toward the bottom so the slider has a real
+ * slow-motion range: 0 is 1/25 speed (the shell creeps round over minutes),
+ * 1 is the calm default, 3 is a lively pace. The old linear map only spanned
+ * 0.2x..1.25x, which is not enough room to slow the flock down.
+ */
+export function epTimeScale(state: EpState): number {
+  const spd = Math.max(0, state.sliders.spd.value);
+  return 0.04 + 0.21 * spd * Math.sqrt(spd);
+}
+
 /** Advance the simulation. dt is in seconds of wall clock. */
 export function stepEp(state: EpState, dt: number) {
+  const rate = epTimeScale(state); // animation seconds per wall second
+  // The slider drives (what reshapes the flock) run off the same clock: with a
+  // floor here, dragging spd down left the shapes morphing at full speed and
+  // the slider felt like it did almost nothing.
+  const drive = Math.max(0.05, rate);
+
   // Script sequencer -------------------------------------------------
-  state.actElapsed += dt;
+  // Acts are held in animation time, so slowing the flock slows the whole show
+  // with it.  The floor keeps the sequence moving even in deep slow motion.
+  state.actElapsed += dt * Math.max(0.15, rate);
   if (state.actElapsed >= state.actDuration) {
     // ElectroPaint's sequence picks acts in a shuffled order, rarely repeating
     const next = (state.actIndex + 1 + Math.floor(state.rand.next() * (state.acts.length - 1))) % state.acts.length;
@@ -455,21 +549,31 @@ export function stepEp(state: EpState, dt: number) {
   for (const spec of EP_SLIDERS) {
     const s = state.sliders[spec.id];
     s.highlight = Math.max(0, s.highlight - dt * 0.45);
-    if (!s.auto) continue;
+    if (!s.auto || s.hold) continue; // taken by hand: leave it alone
     // the "sld" sub-slider bounces between -1 and 1 at its own rate
-    const rate = spec.drift * 0.35 * (0.4 + Math.abs(s.value) * 0.6);
-    s.sub = s.mode === 'wrap' ? wrap(s.sub + rate * dt, -1, 1) : bounce(s.sub + rate * dt, -1, 1);
-    const delta = s.sub * spec.drift * 0.16 * dt * (state.sliders.spd.value * 0.7 + 0.3);
+    const norm = Math.abs(s.value) / Math.max(Math.abs(spec.min), Math.abs(spec.max), 1e-6);
+    const sweep = spec.drift * 0.12 * (0.35 + 0.65 * norm) * drive;
+    s.sub = s.mode === 'wrap' ? wrap(s.sub + sweep * dt, -1, 1) : bounce(s.sub + sweep * dt, -1, 1);
+    const delta = s.sub * spec.drift * 0.16 * dt * drive;
     let v = s.value + delta;
     if (spec.int) v = Math.round(v);
-    if (v > s.max) v = s.mode === 'bounce' ? s.max - (v - s.max) : s.min;
-    if (v < s.min) v = s.mode === 'bounce' ? s.min + (s.min - v) : s.max;
+    // hitting a stop reverses the sub-slider, otherwise a value that has
+    // run to its limit just sits there pegged (which is what made the
+    // whole flock accelerate to maximum and stay there)
+    if (v > s.max) {
+      v = s.mode === 'bounce' ? s.max - (v - s.max) : s.min;
+      if (s.mode === 'bounce') s.sub = -Math.abs(s.sub);
+    }
+    if (v < s.min) {
+      v = s.mode === 'bounce' ? s.min + (s.min - v) : s.max;
+      if (s.mode === 'bounce') s.sub = Math.abs(s.sub);
+    }
     s.value = Math.max(s.min, Math.min(s.max, v));
   }
 
-  const spd = state.sliders.spd.value;
-  state.t += dt * (0.35 + spd * 0.75);
-  state.hueBase += dt * state.sliders.rat.value * 22;
+  // Animation time advances in real seconds, scaled by the flock's own clock.
+  state.t += dt * rate;
+  state.hueBase += dt * drive * state.sliders.rat.value * 10;
   if (state.hueBase > 360) state.hueBase -= 360;
   if (state.hueBase < 0) state.hueBase += 360;
   state.frame++;

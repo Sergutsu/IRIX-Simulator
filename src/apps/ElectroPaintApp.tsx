@@ -5,13 +5,17 @@ import {
   EP_DEFAULT_SCRIPT,
   EP_SLIDERS,
   EpSlider,
-  EpSliderId,
   EpState,
   createEpState,
   drawEpFrame,
+  epTimeScale,
   parseEpScript,
+  randomizeEpSliders,
   resetEpSlider,
   setEpSlider,
+  setEpSliderAuto,
+  startEpAct,
+  setEpSubSlider,
   stepEp,
   toggleEpSliderMode,
 } from '../screensaver/electropaint';
@@ -101,7 +105,9 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       if (!frozen) {
-        stepEp(state, dt * 1.6);
+        // same time base as the screen saver: dt is real seconds, and the
+        // script's `duration:` is honoured in seconds, not frames
+        stepEp(state, dt);
         drawEpFrame(ctx, state, canvas.width, canvas.height, { clear: true });
       }
       frames++;
@@ -120,16 +126,12 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
 
   const loadScript = (text: string, source: string) => {
     const state = stateRef.current;
-    const acts = parseEpScript(text);
-    state.acts = acts;
-    state.actIndex = 0;
-    state.actElapsed = 0;
-    state.actDuration = acts[0].duration;
-    state.actName = acts[0].name;
-    for (const [id, v] of Object.entries(acts[0].set) as [EpSliderId, number][]) {
-      setEpSlider(state, id, v);
-    }
+    state.acts = parseEpScript(text);
+    // takes the sequencer's own path so the act's duration/variance and its
+    // slider targets behave exactly as they do mid-show
+    startEpAct(state, 0);
     setScriptName(source);
+    forceUpdate((v) => v + 1);
     irixAudio.playMenuClick();
   };
 
@@ -140,10 +142,14 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
   };
 
   const randomize = () => {
+    randomizeEpSliders(stateRef.current);
+    forceUpdate((v) => v + 1);
+  };
+
+  const nudgeSpeed = (factor: number) => {
     const state = stateRef.current;
-    for (const spec of EP_SLIDERS) {
-      setEpSlider(state, spec.id, state.rand.range(spec.min, spec.max));
-    }
+    setEpSlider(state, 'spd', state.sliders.spd.value * factor, { hold: true });
+    forceUpdate((v) => v + 1);
   };
 
   const sliderWidget = (spec: (typeof EP_SLIDERS)[number]) => {
@@ -156,7 +162,7 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
       <div
         key={spec.id}
         style={{
-          width: '52px',
+          width: '58px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -164,7 +170,7 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
           userSelect: 'none',
         }}
       >
-        {/* R (reset) + X (slider type) */}
+        {/* R (reset) + X (slider type) + A (auto / hold) */}
         <div style={{ display: 'flex', gap: '2px' }}>
           <button
             type="button"
@@ -208,6 +214,33 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
           >
             X
           </button>
+          <button
+            type="button"
+            title={
+              slider.auto
+                ? `Hold ${spec.label} (stop the drive and keep this value)`
+                : `Auto ${spec.label} (hand it back to the act)`
+            }
+            onClick={() => {
+              setEpSliderAuto(stateRef.current, spec.id, !stateRef.current.sliders[spec.id].auto);
+              forceUpdate((v) => v + 1);
+            }}
+            style={{
+              width: '17px',
+              height: '15px',
+              fontSize: '9px',
+              fontWeight: 700,
+              background: slider.auto ? '#c4c4c4' : '#8fb56f',
+              border: '1px solid #111',
+              boxShadow: slider.auto
+                ? 'inset 1px 1px 0 #f5f5f5, inset -1px -1px 0 #666'
+                : 'inset 1px 1px 0 #333, inset -1px -1px 0 #dfeccf',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            A
+          </button>
         </div>
 
         {/* main slider trough */}
@@ -217,7 +250,10 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
             const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
             const setFromEvent = (clientY: number) => {
               const frac = 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-              setEpSlider(stateRef.current, spec.id, spec.min + frac * (spec.max - spec.min));
+              // a real drag takes the act by hand: the value stays put
+              setEpSlider(stateRef.current, spec.id, spec.min + frac * (spec.max - spec.min), {
+                hold: true,
+              });
             };
             setFromEvent(e.clientY);
             const move = (ev: MouseEvent) => setFromEvent(ev.clientY);
@@ -250,7 +286,9 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
               background:
                 slider.highlight > 0.02
                   ? `rgba(184,168,126,${0.55 + 0.45 * slider.highlight})`
-                  : '#6f8fb5',
+                  : slider.hold
+                    ? '#c08a3f'
+                    : '#6f8fb5',
               border: '1px solid #333',
             }}
           />
@@ -276,7 +314,7 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
             const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
             const setFromEvent = (clientX: number) => {
               const frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-              stateRef.current.sliders[spec.id].sub = frac * 2 - 1;
+              setEpSubSlider(stateRef.current, spec.id, frac * 2 - 1);
             };
             setFromEvent(e.clientX);
             const move = (ev: MouseEvent) => setFromEvent(ev.clientX);
@@ -347,6 +385,20 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
         <span className="sgi-menubar-item" onClick={randomize}>
           Randomize
         </span>
+        <span
+          className="sgi-menubar-item"
+          onClick={() => nudgeSpeed(0.7)}
+          title="Slow the whole animation down (and hold that speed)"
+        >
+          Slower
+        </span>
+        <span
+          className="sgi-menubar-item"
+          onClick={() => nudgeSpeed(1.4)}
+          title="Speed the whole animation up (and hold that speed)"
+        >
+          Faster
+        </span>
         <span className="sgi-menubar-item" onClick={() => setFrozen((f) => !f)}>
           {frozen ? 'Resume' : 'Freeze'}
         </span>
@@ -399,7 +451,8 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
               textShadow: '0 0 3px #000',
             }}
           >
-            act:{actInfo.act} · n={Math.round(state.sliders.n.value)} · {actInfo.polys} polys ·{' '}
+            act:{actInfo.act} · n={Math.round(state.sliders.n.value)} · {actInfo.polys} polys · spd=
+            {state.sliders.spd.value.toFixed(2)} ({epTimeScale(state).toFixed(2)}x) ·{' '}
             {state.lighting ? 'IRIS GT lighting + blend' : 'flat'}
           </div>
         </div>
@@ -496,7 +549,9 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
             <div style={{ fontSize: '10px', color: '#2a2a2a', lineHeight: 1.3 }}>
               Panel Library notes: each column is a multi-slider — <b>R</b> resets it, <b>X</b>{' '}
               switches it between <i>wrap</i> and <i>bounce</i>, and the thin <i>sld</i> below each
-              trough is the little slider that animates the main value.
+              trough is the little slider that animates the main value. Drag a trough to take that
+              act by hand (the bar turns amber and stays where you put it) and <b>A</b> to hand it
+              back to the script. <b>Slower</b>/<b>Faster</b> hold the speed you pick.
             </div>
           </div>
         )}

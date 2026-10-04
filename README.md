@@ -42,6 +42,10 @@ Full technical specifications, framework selection analysis, and `.fti` vector i
   - `blank` — the plain blanker used by the console lock.
   - Idle blanking is live: leave the desktop alone and the saver takes the screen; move the mouse (or press a key) to come back, or set the panel to lock the console and it asks for the password first.
 
+- **Display scaling**: the desktop is a workstation framebuffer laid out in virtual pixels and scaled
+  as a whole to whatever display it is shown on, so windows and the Toolchest always fit (1:1 above
+  1024x700, proportional below). The old always-on bottom quick-launch bar is gone; the same apps are
+  on the desktop right-click menu, and **Toolchest -> Desktop -> Quick Launch Bar** brings the bar back.
 - **Authentic look details tuned against real captures**: 4Dwm's dithered/stippled root window, the khaki Toolchest title bar, mauve Motif text fields (`#c8979b`), the `SgBusyPopup` "Wait a bit." busy dialog, SGI's italic Helvetica Bold Oblique titling, black IRIS GL viewports, and the `Set Key` / `Apply` / `Reset` button rows from ViewKit.
 
 ## Reference Screenshots

@@ -45,8 +45,9 @@ const noop = () => undefined;
 console.log('Server-rendered application tree');
 check('Desktop (App)', () => renderToStaticMarkup(React.createElement(App)), [
   'Toolchest',
-  'ElectroPaint',
-  'Wavefront Explorer',
+  // the framebuffer wrapper that scales the desktop to the display
+  'transform:scale(',
+  'Desks Overview',
 ]);
 
 check(

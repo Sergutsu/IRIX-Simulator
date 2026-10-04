@@ -30,10 +30,13 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SgiColorScheme } from '../state/osStore';
+import { screenScale } from '../state/screen';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import {
   buildPrimitive,
+  cornerNormals,
   deformMesh,
+  faceNormalOf,
   DeformId,
   matMul,
   matRotX,
@@ -118,6 +121,120 @@ interface DrawOptions {
   lightAngle: number;
   /** current timeline frame, used to evaluate the rotation channels */
   frame: number;
+  /**
+   * Crease/smoothing angle in degrees.  Faces meeting at a shallower angle
+   * share a smooth normal; sharper edges stay hard.  0 = faceted, 45 (the
+   * default) keeps curved hulls smooth and boxes crisp.
+   */
+  smoothAngle?: number;
+}
+
+/**
+ * A Gouraud-shaded triangle, ready for the software rasteriser.
+ *
+ * Explore and the Advanced Visualizer shaded *vertex* colours and
+ * interpolated them across the polygon; that is what makes a low polygon
+ * mesh read as a smooth surface instead of a pile of flat facets.
+ */
+interface ShadedTri {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  cx: number;
+  cy: number;
+  /** vertex colours 0..255 */
+  r0: number;
+  g0: number;
+  b0: number;
+  r1: number;
+  g1: number;
+  b1: number;
+  r2: number;
+  g2: number;
+  b2: number;
+  alpha: number;
+  depth: number;
+}
+
+/**
+ * Software Gouraud rasteriser: barycentric colour interpolation straight into
+ * the canvas pixels, painter-sorted exactly like the rest of this renderer.
+ * `scale` maps the logical drawing units onto canvas device pixels (the ray
+ * traced pass draws at 2x).
+ */
+function rasterizeShaded(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  scale: number,
+  tris: ShadedTri[]
+): boolean {
+  const dw = Math.max(1, Math.round(w * scale));
+  const dh = Math.max(1, Math.round(h * scale));
+  const getImage =
+    typeof (ctx as unknown as { getImageData?: unknown }).getImageData === 'function';
+  if (!getImage) return false;
+  let img: { data: Uint8ClampedArray | Uint8Array; width: number; height: number } | undefined;
+  try {
+    img = ctx.getImageData(0, 0, dw, dh);
+  } catch {
+    return false;
+  }
+  if (!img || !img.data || img.data.length < dw * dh * 4) return false;
+  const data = img.data;
+
+  for (const t of tris) {
+    const ax = t.ax * scale;
+    const ay = t.ay * scale;
+    const bx = t.bx * scale;
+    const by = t.by * scale;
+    const cx = t.cx * scale;
+    const cy = t.cy * scale;
+    const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
+    const maxX = Math.min(dw - 1, Math.ceil(Math.max(ax, bx, cx)));
+    const minY = Math.max(0, Math.floor(Math.min(ay, by, cy)));
+    const maxY = Math.min(dh - 1, Math.ceil(Math.max(ay, by, cy)));
+    if (maxX < minX || maxY < minY) continue;
+    const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+    if (area === 0) continue;
+    const inv = 1 / area;
+    const a = t.alpha;
+    // colour at the third corner plus the two barycentric deltas
+    const dr0 = t.r0 - t.r2;
+    const dg0 = t.g0 - t.g2;
+    const db0 = t.b0 - t.b2;
+    const dr1 = t.r1 - t.r2;
+    const dg1 = t.g1 - t.g2;
+    const db1 = t.b1 - t.b2;
+    for (let y = minY; y <= maxY; y++) {
+      const py = y + 0.5;
+      let row = (y * dw + minX) * 4;
+      for (let x = minX; x <= maxX; x++, row += 4) {
+        const px = x + 0.5;
+        const w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) * inv;
+        const w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) * inv;
+        const w2 = 1 - w0 - w1;
+        if (w0 < -0.002 || w1 < -0.002 || w2 < -0.002) continue;
+        const r = t.r2 + w0 * dr0 + w1 * dr1;
+        const g = t.g2 + w0 * dg0 + w1 * dg1;
+        const b = t.b2 + w0 * db0 + w1 * db1;
+        if (a >= 1) {
+          data[row] = r;
+          data[row + 1] = g;
+          data[row + 2] = b;
+        } else {
+          const ia = 1 - a;
+          data[row] = data[row] * ia + r * a;
+          data[row + 1] = data[row + 1] * ia + g * a;
+          data[row + 2] = data[row + 2] * ia + b * a;
+        }
+        data[row + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(img as ImageData, 0, 0);
+  return true;
 }
 
 /* ------------------------------------------------------------------ *
@@ -246,7 +363,6 @@ interface FaceDraw {
   depth: number;
   fill: string | null;
   stroke: string;
-  vertexColors?: string[];
 }
 
 export function drawScene(
@@ -313,6 +429,7 @@ export function drawScene(
   }
 
   const draws: FaceDraw[] = [];
+  const shaded: ShadedTri[] = [];
   // wireframe deliberately draws every edge, front and back
   const cull = opts.quality !== 'wireframe';
 
@@ -333,27 +450,31 @@ export function drawScene(
     const view = world.map((v) => viewTransform(v, cam));
     const projected = view.map((v) => projectView(v, w, h));
 
-    // vertex normals for Gouraud shading
-    const vnormals: Vec3[] = mesh.verts.map(() => [0, 0, 0]);
-    const facenorms: Vec3[] = [];
-    for (const face of mesh.faces) {
-      const a = world[face[0]];
-      const b = world[face[1]];
-      const c = world[face[2] ?? face[0]];
-      const n = faceNormal(a, b, c);
-      facenorms.push(n);
-      for (const idx of face) {
-        vnormals[idx][0] += n[0];
-        vnormals[idx][1] += n[1];
-        vnormals[idx][2] += n[2];
-      }
-    }
-    vnormals.forEach((n) => {
-      const len = Math.hypot(n[0], n[1], n[2]) || 1;
-      n[0] /= len;
-      n[1] /= len;
-      n[2] /= len;
-    });
+    // Face normals (Newell) plus crease-aware per-corner normals, which is
+    // what the era's shaders did: curved hulls get one smooth normal per
+    // corner, sharp edges keep their own so a box still reads as a box.
+    const crease = opts.smoothAngle ?? 45;
+    const facenorms: Vec3[] = mesh.faces.map((f) => faceNormalOf(world, f));
+    const cnorms: Vec3[][] = cornerNormals(world, mesh.faces, crease);
+
+    const smooth = opts.quality === 'gouraud' || opts.quality === 'raytrace';
+    const smoothAlpha = 1 - material.transparency;
+    const AMBIENT = 0.3;
+    const DIFFUSE = 0.95;
+    /** Lambert + a restrained highlight, evaluated per vertex. */
+    const shadeVertex = (
+      n: Vec3,
+      spec: number,
+      out: [number, number, number]
+    ): [number, number, number] => {
+      const lam = Math.max(0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
+      const lit = AMBIENT + DIFFUSE * lam;
+      const gloss = 255 * spec * 0.45;
+      out[0] = Math.min(255, material.color[0] * lit + gloss);
+      out[1] = Math.min(255, material.color[1] * lit + gloss);
+      out[2] = Math.min(255, material.color[2] * lit + gloss);
+      return out;
+    };
 
     mesh.faces.forEach((face, fi) => {
       const pts = face.map((idx) => projected[idx]);
@@ -381,17 +502,6 @@ export function drawScene(
       const alpha = 1 - material.transparency;
       const fill = `rgba(${shade(0)},${shade(1)},${shade(2)},${alpha.toFixed(2)})`;
 
-      let vertexColors: string[] | undefined;
-      if (opts.quality === 'gouraud') {
-        vertexColors = face.map((idx) => {
-          const n = vnormals[idx];
-          const lam = Math.max(0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
-          const s2 = (c: number) =>
-            Math.min(255, Math.round(material.color[c] * (ambient + 0.95 * lam) + 255 * spec * 0.6));
-          return `rgb(${s2(0)},${s2(1)},${s2(2)})`;
-        });
-      }
-
       // IRIS GL back-face removal (frontface(GL_CCW) by default).  Every solid
       // hull is closed, so culling both halves the work and cleans the
       // silhouette; only the single-sided grid plane is duplicated.
@@ -412,6 +522,40 @@ export function drawScene(
         return;
       }
 
+      if (smooth) {
+        // Gouraud: shade every corner from its own smooth normal and let the
+        // rasteriser interpolate across the facets.  No facet outlines — the
+        // surface reads as one continuous low polygon skin.
+        const cornerCount = face.length;
+        const cols: [number, number, number][] = [];
+        for (let k = 0; k < cornerCount; k++) {
+          cols.push(shadeVertex(cnorms[fi][k], spec * 0.35, [0, 0, 0]));
+        }
+        // fan-triangulate quads
+        for (let k = 1; k + 1 < cornerCount; k++) {
+          shaded.push({
+            ax: pts[0].x,
+            ay: pts[0].y,
+            bx: pts[k].x,
+            by: pts[k].y,
+            cx: pts[k + 1].x,
+            cy: pts[k + 1].y,
+            r0: cols[0][0],
+            g0: cols[0][1],
+            b0: cols[0][2],
+            r1: cols[k][0],
+            g1: cols[k][1],
+            b1: cols[k][2],
+            r2: cols[k + 1][0],
+            g2: cols[k + 1][1],
+            b2: cols[k + 1][2],
+            alpha: smoothAlpha,
+            depth,
+          });
+        }
+        return;
+      }
+
       draws.push({
         pts,
         depth,
@@ -420,12 +564,35 @@ export function drawScene(
           opts.quality === 'wireframe'
             ? `rgba(${material.color[0]},${material.color[1]},${material.color[2]},0.95)`
             : 'rgba(0,0,0,0.55)',
-        vertexColors,
       });
     });
   }
 
   draws.sort((a, b) => b.depth - a.depth);
+
+  if (shaded.length) {
+    shaded.sort((a, b) => b.depth - a.depth);
+    const tf =
+      typeof (ctx as unknown as { getTransform?: unknown }).getTransform === 'function'
+        ? ctx.getTransform()
+        : null;
+    const scale = tf && Number.isFinite(tf.a) && tf.a > 0 ? tf.a : 1;
+    if (!rasterizeShaded(ctx, w, h, scale, shaded)) {
+      // no direct pixel access (headless stubs): fall back to per-facet fills
+      for (const t of shaded) {
+        draws.push({
+          pts: [
+            { x: t.ax, y: t.ay, z: t.depth },
+            { x: t.bx, y: t.by, z: t.depth },
+            { x: t.cx, y: t.cy, z: t.depth },
+          ],
+          depth: t.depth,
+          fill: `rgb(${t.r0 | 0},${t.g0 | 0},${t.b0 | 0})`,
+          stroke: 'rgba(0,0,0,0)',
+        });
+      }
+    }
+  }
 
   for (const d of draws) {
     if (d.pts.length < 2) continue;
@@ -434,16 +601,7 @@ export function drawScene(
     for (let i = 1; i < d.pts.length; i++) ctx.lineTo(d.pts[i].x, d.pts[i].y);
     ctx.closePath();
     if (d.fill) {
-      if (d.vertexColors && d.vertexColors.length === d.pts.length) {
-        const a = d.pts[0];
-        const b = d.pts[d.pts.length - 1];
-        const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-        const n = d.vertexColors.length;
-        d.vertexColors.forEach((c, i) => grad.addColorStop(n === 1 ? 0 : i / (n - 1), c));
-        ctx.fillStyle = grad;
-      } else {
-        ctx.fillStyle = d.fill;
-      }
+      ctx.fillStyle = d.fill;
       ctx.fill();
     }
     if (d.fill === null) {
@@ -533,6 +691,8 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [quality, setQuality] = useState<RenderQuality>('gouraud');
+  // shader smoothing (crease) angle: the Explorer shader's own control
+  const [smoothAngle, setSmoothAngle] = useState<number>(45);
   const [showGrid, setShowGrid] = useState(true);
   const [resolution, setResolution] = useState(RESOLUTIONS[1].id);
   const [renderProgress, setRenderProgress] = useState<number | null>(null);
@@ -579,7 +739,8 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
   const drawViewport = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    // the Gouraud pass reads the frame back to interpolate vertex colours
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
     drawScene(ctx, canvas.width, canvas.height, objects, camRef.current, {
       quality,
@@ -587,6 +748,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       floor: showGrid,
       lightAngle: frameRef.current / 30,
       frame: frameRef.current,
+      smoothAngle,
     });
 
     // wordmark + HUD, the way every Wavefront program labelled its viewport
@@ -612,7 +774,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       canvas.height - 10
     );
     ctx.restore();
-  }, [objects, quality, showGrid, resolutionSize]);
+  }, [objects, quality, showGrid, resolutionSize, smoothAngle]);
 
   useEffect(() => {
     let raf = 0;
@@ -744,6 +906,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       floor: showGrid,
       lightAngle: frame / 30,
       frame,
+      smoothAngle,
     });
 
     if (quality === 'raytrace') {
@@ -1021,6 +1184,26 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
         );
       })()}
       {sectionTitle('Shading')}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <div style={rowStyle}>
+          <span>Smoothing angle:</span>
+          <span style={{ fontFamily: 'monospace', fontSize: '10.5px' }}>{smoothAngle}°</span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={180}
+          step={5}
+          value={smoothAngle}
+          onChange={(e) => setSmoothAngle(parseInt(e.target.value, 10))}
+          style={{ width: '100%' }}
+          title="Faces meeting at a shallower angle share a smooth normal (0 = every facet flat, 180 = fully smoothed)"
+        />
+        <div style={{ fontSize: '10px', color: '#2a2a2a', lineHeight: 1.3 }}>
+          Vertex colours are interpolated across each facet: curved hulls shade smoothly, edges
+          sharper than {smoothAngle}° stay hard.
+        </div>
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
         {QUALITY_LABELS.map((q) => (
           <button
@@ -1436,7 +1619,9 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
           onContextMenu={(e) => {
             e.preventDefault();
             const rect = e.currentTarget.getBoundingClientRect();
-            setRadial({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            // the desktop is scaled as a whole: place the menu in framebuffer px
+            const s = screenScale();
+            setRadial({ x: (e.clientX - rect.left) / s, y: (e.clientY - rect.top) / s });
           }}
         >
           <canvas

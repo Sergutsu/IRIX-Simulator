@@ -85,6 +85,13 @@ Building an authentic workstation Operating System simulator—specifically **Si
 
 ## 3. IRIX Vector Icon Set Specification (`.fti` & `.ftr`)
 
+**Display scaling**: the desktop is laid out in the workstation's own pixels — its framebuffer — and
+the whole thing is then scaled to the browser window, exactly the way a real SGI box drives whatever
+monitor it is attached to. Above 1024x700 the desktop runs 1:1 and simply gets more room; below it
+everything shrinks together, so windows, fonts and the Toolchest stay in proportion instead of being
+clipped off the edge of a small display. Window coordinates are framebuffer pixels, which is why the
+drag/resize maths divides pointer deltas by the current scale (`src/state/screen.ts`).
+
 Five years before the W3C SVG specification (1998), SGI created a resolution-independent vector icon system for the Indigo Magic Desktop (1993).
 
 ### 3.1 The `.fti` (File Type Icon) Geometry Language
@@ -198,6 +205,21 @@ flock previewed in the control panel is exactly the flock that takes over the sc
 * The default script lives in `src/screensaver/electropaint.ts` (`EP_DEFAULT_SCRIPT`) and is written
   to `/usr/people/guest/.ep_script` by the control panel, so `cat ~/.ep_script` in Winterm shows the
   real command vocabulary.
+* Timing is real time, not frames: `stepEp(state, dt)` is fed seconds of wall clock by both the
+  saver module and the `ep -c` loop, so the two always run at the same pace.
+* `spd` is the flock's clock, and its curve is steep toward the bottom so the slider has a genuine
+  slow-motion range: `0 = 1/25 speed`, `1 = 0.25x wall clock` (the calm default — one rotation axis
+  takes about a minute), `3 = 1.13x`. The shape drives and the script run off the same clock, so
+  pulling `spd` down slows the whole show rather than leaving the polygons morphing at full speed
+  while the rotation crawls. The sequence keeps a small floor so deep slow motion still evolves
+  from one act to the next. Whole-show re-timing is also on the menu (**Slower**/**Faster**) and on
+  the `spd` trough.
+* Every column is live: dragging a trough takes that act by hand — the value bar turns amber and
+  stays where it was put — and `A` hands it back to the sequencer. Dragging the small `sld` bar
+  steers the drive itself (its position is the rate and direction the main value is pulled).
+* The sequencer takes control on the first frame (act one is applied at load), and any act driven
+  into a stop reverses its `sld` instead of sitting on the limit; without that the sliders pinned at
+  maximum one after another and the whole flock accelerated to full speed and stayed there.
 
 Twelve moments from one run of the simulated saver — the shell tightens into rings and ribbons,
 spirals, and blown-apart swarms as the script re-targets `twst`, `arm`, `flp`, `n` and `zoom`:
@@ -250,6 +272,19 @@ both was announced as Maya; this simulator recreates the Explorer-era interface.
 * **Inverted, shader-first hierarchy** — materials are assigned by dropping geometry under the shader.
 * **Software IRIS GL pipeline** — painter's algorithm with back-face aware flat/Gouraud shading, a
   single default light with Phong specular, black viewport, and the product wordmark in the corner.
+* **Real vertex-colour interpolation.** Gouraud shading is a barycentric software rasteriser, not a
+  pile of per-facet fills: each corner is lit from its own normal and the colour is interpolated
+  across the facet in the pixel buffer, so a low polygon hull reads as one smooth surface and no
+  facet outlines are drawn in this mode.
+* **Crease (smoothing) angle**, the shader control Explore exposed: faces meeting at a shallower
+  angle than the setting share an averaged normal, sharper edges keep a hard one. The default 45°
+  keeps cylinders, spheres and tori smooth while boxes and the machined shoulders of the Piston
+  Assembly stay crisp; 0° facets everything, 180° smooths the whole hull.
+
+Above: the simulated viewport in its default Gouraud mode — the Piston Assembly's turned shoulders
+and the torus shade as continuous surfaces, with only silhouette edges visible.
+
+![Wavefront Explorer smooth shading](images/explorer-gouraud-shading.png)
 * Optionally, renders land in the File Manager Content Viewer and in `fcheck`, so the whole
   Explorer → fcheck → Composer → video-deck pipeline story is walkable.
 

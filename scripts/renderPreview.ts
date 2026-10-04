@@ -227,6 +227,13 @@ class Ctx {
   scale() {}
   setTransform() {}
   drawImage() {}
+  /** the Gouraud pass reads the frame back, interpolates, and writes it again */
+  getImageData(x: number, y: number, gw: number, gh: number) {
+    return { width: gw, height: gh, data: this.buf.subarray(0) as unknown as Uint8ClampedArray, originX: x, originY: y };
+  }
+  putImageData(img: { data: Uint8ClampedArray | Uint8Array }) {
+    if (img && img.data) this.buf.set(img.data as Uint8Array);
+  }
   fillText() {}
   strokeText() {}
   measureText() {
