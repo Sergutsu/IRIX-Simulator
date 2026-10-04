@@ -216,7 +216,7 @@ class Ctx {
     this.polygon(this.cur, this.colorOf(), this.globalAlpha);
   }
   stroke() {
-    const c = this.colorOf();
+    const c = parseColor(this.strokeStyle as string);
     for (let i = 0; i < this.cur.length - 1; i++) this.line(this.cur[i], this.cur[i + 1], c);
   }
   save() {}
@@ -329,6 +329,7 @@ fs.mkdirSync(outDir, { recursive: true });
     id: 'p',
     name: 'piston_assembly.obj',
     primitive: 'piston' as PrimitiveId,
+    pos: [-0.55, 0, 0],
     deform: 'none',
     deformAmount: 0,
     material: 'chrome',
@@ -342,6 +343,7 @@ fs.mkdirSync(outDir, { recursive: true });
     id: 't',
     name: 'torus_1.obj',
     primitive: 'torus' as PrimitiveId,
+    pos: [0.95, 0.1, 0],
     deform: 'twist',
     deformAmount: 0.35,
     material: 'gold',
@@ -355,7 +357,7 @@ fs.mkdirSync(outDir, { recursive: true });
       640,
       480,
       [piston, torus],
-      { yaw: 0.5, pitch: 0.28, dist: 5.2, target: [0, -0.3, 0] },
+      { yaw: 0.5, pitch: 0.28, dist: 4.1, target: [0, -0.3, 0] },
       { quality: q, showGrid: true, floor: true, lightAngle: 1.2, frame: 40 }
     );
     writePng(`${outDir}/explorer-${q}.png`, 640, 480, ctx.buf);

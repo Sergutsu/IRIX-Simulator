@@ -136,6 +136,7 @@ ok(`${PRIMITIVE_LIBRARY.length} primitives built, deformers finite`);
     id: `o${i}`,
     name: `${p.id}.obj`,
     primitive: p.id as PrimitiveId,
+    pos: [i * 1.1 - 1.6, 0, 0],
     deform: i % 2 ? 'twist' : 'none',
     deformAmount: 0.4,
     material: ['chrome', 'gold', 'jade', 'glass'][i % 4],

@@ -61,6 +61,8 @@ export interface ExplorerObject {
   id: string;
   name: string;
   primitive: PrimitiveId;
+  /** placement in the modeler's world space */
+  pos: Vec3;
   deform: DeformId;
   deformAmount: number;
   material: string;
@@ -128,7 +130,8 @@ interface Projected {
   z: number;
 }
 
-function project(v: Vec3, cam: Camera, w: number, h: number): Projected {
+/** world -> view space (+Z points away from the camera) */
+function viewTransform(v: Vec3, cam: Camera): Vec3 {
   const cy = Math.cos(cam.yaw);
   const sy = Math.sin(cam.yaw);
   const cp = Math.cos(cam.pitch);
@@ -136,17 +139,50 @@ function project(v: Vec3, cam: Camera, w: number, h: number): Projected {
   const x0 = v[0] - cam.target[0];
   const y0 = v[1] - cam.target[1];
   const z0 = v[2] - cam.target[2];
-  // yaw around Y
   const x1 = x0 * cy + z0 * sy;
   const z1 = -x0 * sy + z0 * cy;
-  // pitch around X
   const y2 = y0 * cp - z1 * sp;
   const z2 = y0 * sp + z1 * cp;
-  const depth = z2 + cam.dist;
-  const safe = Math.max(0.2, depth);
+  return [x1, y2, z2 + cam.dist];
+}
+
+/** view space -> screen, given a near plane distance */
+function projectView(v: Vec3, w: number, h: number): Projected {
   const fov = Math.min(w, h) * 0.92;
-  const s = fov / safe;
-  return { x: w / 2 + x1 * s, y: h / 2 - y2 * s, z: depth };
+  const s = fov / v[2];
+  return { x: w / 2 + v[0] * s, y: h / 2 - v[1] * s, z: v[2] };
+}
+
+const NEAR_PLANE = 0.3;
+
+function project(v: Vec3, cam: Camera, w: number, h: number): Projected {
+  return projectView(viewTransform(v, cam), w, h);
+}
+
+/**
+ * Clip a segment against the near plane before projecting.  Without this,
+ * geometry behind the camera mirrors through the projection and draws
+ * nonsense across the screen — which is exactly what an unclipped grid does.
+ */
+function projectSegment(
+  a: Vec3,
+  b: Vec3,
+  cam: Camera,
+  w: number,
+  h: number
+): [Projected, Projected] | null {
+  let va = viewTransform(a, cam);
+  let vb = viewTransform(b, cam);
+  if (va[2] < NEAR_PLANE && vb[2] < NEAR_PLANE) return null;
+  const t = (NEAR_PLANE - va[2]) / (vb[2] - va[2]);
+  const clip = (v0: Vec3, v1: Vec3): Vec3 => [
+    v0[0] + (v1[0] - v0[0]) * t,
+    v0[1] + (v1[1] - v0[1]) * t,
+    v0[2] + (v1[2] - v0[2]) * t,
+  ];
+  if (va[2] < NEAR_PLANE) va = clip(va, vb);
+  if (vb[2] < NEAR_PLANE) vb = clip(va, vb);
+  return [projectView(va, w, h), projectView(vb, w, h)];
 }
 
 function faceNormal(a: Vec3, b: Vec3, c: Vec3): Vec3 {
@@ -226,9 +262,9 @@ export function drawScene(
   ctx.fillRect(0, 0, w, h);
 
   const lightDir: Vec3 = [
-    Math.cos(opts.lightAngle) * 0.55,
-    0.62,
-    Math.sin(opts.lightAngle) * 0.55,
+    Math.cos(opts.lightAngle) * 0.5,
+    0.78,
+    Math.sin(opts.lightAngle) * 0.5,
   ];
   const ll = Math.hypot(...lightDir) || 1;
   const L: Vec3 = [lightDir[0] / ll, lightDir[1] / ll, lightDir[2] / ll];
@@ -244,18 +280,24 @@ export function drawScene(
     ctx.strokeStyle = 'rgba(70,110,90,0.55)';
     ctx.lineWidth = 1;
     for (let i = -g; i <= g; i += 0.8) {
-      const a = project([i, -1.25, -g], cam, w, h);
-      const b = project([i, -1.25, g], cam, w, h);
-      const c = project([-g, -1.25, i], cam, w, h);
-      const d = project([g, -1.25, i], cam, w, h);
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(c.x, c.y);
-      ctx.lineTo(d.x, d.y);
-      ctx.stroke();
+      const segs: [Vec3, Vec3][] = [
+        [
+          [i, -1.25, -g],
+          [i, -1.25, g],
+        ],
+        [
+          [-g, -1.25, i],
+          [g, -1.25, i],
+        ],
+      ];
+      for (const [p0, p1] of segs) {
+        const seg = projectSegment(p0, p1, cam, w, h);
+        if (!seg) continue;
+        ctx.beginPath();
+        ctx.moveTo(seg[0].x, seg[0].y);
+        ctx.lineTo(seg[1].x, seg[1].y);
+        ctx.stroke();
+      }
     }
     if (opts.quality === 'raytrace') {
       const centre = project([cam.target[0], -1.24, cam.target[2]], cam, w, h);
@@ -271,6 +313,8 @@ export function drawScene(
   }
 
   const draws: FaceDraw[] = [];
+  // wireframe deliberately draws every edge, front and back
+  const cull = opts.quality !== 'wireframe';
 
   for (const obj of objects) {
     if (!obj.visible) continue;
@@ -280,13 +324,14 @@ export function drawScene(
     const mesh = meshFor(obj);
     const world = mesh.verts.map((v) => {
       const p = [
-        rot.m[0] * v[0] + rot.m[4] * v[1] + rot.m[8] * v[2],
-        rot.m[1] * v[0] + rot.m[5] * v[1] + rot.m[9] * v[2],
-        rot.m[2] * v[0] + rot.m[6] * v[1] + rot.m[10] * v[2],
+        rot.m[0] * v[0] + rot.m[4] * v[1] + rot.m[8] * v[2] + obj.pos[0],
+        rot.m[1] * v[0] + rot.m[5] * v[1] + rot.m[9] * v[2] + obj.pos[1],
+        rot.m[2] * v[0] + rot.m[6] * v[1] + rot.m[10] * v[2] + obj.pos[2],
       ] as Vec3;
       return p;
     });
-    const projected = world.map((v) => project(v, cam, w, h));
+    const view = world.map((v) => viewTransform(v, cam));
+    const projected = view.map((v) => projectView(v, w, h));
 
     // vertex normals for Gouraud shading
     const vnormals: Vec3[] = mesh.verts.map(() => [0, 0, 0]);
@@ -330,8 +375,8 @@ export function drawScene(
       const H: Vec3 = [half[0] / hl, half[1] / hl, half[2] / hl];
       const lambert = Math.max(0, nWorld[0] * L[0] + nWorld[1] * L[1] + nWorld[2] * L[2]);
       const spec = Math.pow(Math.max(0, nWorld[0] * H[0] + nWorld[1] * H[1] + nWorld[2] * H[2]), material.shine) * material.specular;
-      const ambient = 0.22;
-      const diffuse = 0.82 * lambert;
+      const ambient = 0.3;
+      const diffuse = 0.95 * lambert;
       const shade = (c: number) => Math.min(255, Math.round(material.color[c] * (ambient + diffuse) + 255 * spec));
       const alpha = 1 - material.transparency;
       const fill = `rgba(${shade(0)},${shade(1)},${shade(2)},${alpha.toFixed(2)})`;
@@ -342,22 +387,40 @@ export function drawScene(
           const n = vnormals[idx];
           const lam = Math.max(0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2]);
           const s2 = (c: number) =>
-            Math.min(255, Math.round(material.color[c] * (ambient + 0.82 * lam) + 255 * spec * 0.6));
+            Math.min(255, Math.round(material.color[c] * (ambient + 0.95 * lam) + 255 * spec * 0.6));
           return `rgb(${s2(0)},${s2(1)},${s2(2)})`;
         });
       }
 
+      // IRIS GL back-face removal (frontface(GL_CCW) by default).  Every solid
+      // hull is closed, so culling both halves the work and cleans the
+      // silhouette; only the single-sided grid plane is duplicated.
       const backface = viewNormal[2] > 0;
+      if (cull && backface) return;
+      // skip facets whose centroid is behind the near plane
+      if (depth < NEAR_PLANE) return;
+
+      if (opts.quality === 'hiddenline') {
+        // the era's hidden line pass: paint the hull black to occlude what is
+        // behind it, then draw the facet outline bright
+        draws.push({
+          pts,
+          depth,
+          fill: '#000000',
+          stroke: 'rgba(226,236,246,0.92)',
+        });
+        return;
+      }
 
       draws.push({
         pts,
         depth,
-        fill: opts.quality === 'wireframe' || opts.quality === 'hiddenline' ? null : fill,
+        fill: opts.quality === 'wireframe' ? null : fill,
         stroke:
           opts.quality === 'wireframe'
             ? `rgba(${material.color[0]},${material.color[1]},${material.color[2]},0.95)`
             : 'rgba(0,0,0,0.55)',
-        vertexColors: backface ? undefined : vertexColors,
+        vertexColors,
       });
     });
   }
@@ -383,9 +446,20 @@ export function drawScene(
       }
       ctx.fill();
     }
-    if (opts.quality === 'wireframe' || opts.quality === 'hiddenline' || opts.quality === 'raytrace') {
+    if (d.fill === null) {
+      // wireframe
       ctx.strokeStyle = d.stroke;
       ctx.lineWidth = w > 600 ? 1.2 : 1;
+      ctx.stroke();
+    } else if (opts.quality === 'hiddenline') {
+      // black fill already laid down; outline it
+      ctx.strokeStyle = d.stroke;
+      ctx.lineWidth = w > 600 ? 1.1 : 1;
+      ctx.stroke();
+    } else if (opts.quality === 'raytrace') {
+      // ray traced frames read as smooth, so only a whisper of an edge
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
       ctx.stroke();
     }
   }
@@ -403,10 +477,22 @@ interface WavefrontExplorerAppProps {
 }
 
 let objectSerial = 0;
-const newObject = (primitive: PrimitiveId, at: number): ExplorerObject => ({
+
+/** the modeler drops new objects beside the ones already in the scene */
+function ringPlacement(index: number): Vec3 {
+  if (index === 0) return [0, 0, 0];
+  const ring = Math.ceil(index / 6);
+  const slot = (index - 1) % 6;
+  const a = (slot / 6) * Math.PI * 2 + ring * 0.4;
+  const r = 1.25 * ring;
+  return [Math.cos(a) * r, 0, Math.sin(a) * r];
+}
+
+const newObject = (primitive: PrimitiveId, count: number, frame = 0): ExplorerObject => ({
   id: `obj_${++objectSerial}`,
   name: `${primitive}_${objectSerial}.obj`,
   primitive,
+  pos: ringPlacement(count),
   deform: 'none',
   deformAmount: 0,
   material: primitive === 'piston' ? 'chrome' : 'plastic_blue',
@@ -416,7 +502,7 @@ const newObject = (primitive: PrimitiveId, at: number): ExplorerObject => ({
     { frame: 96, rx: 0.12, ry: Math.PI * 2, rz: 0 },
   ],
   visible: true,
-  ...{ __at: at },
+  ...{ __at: frame },
 });
 
 export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
@@ -431,6 +517,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       id: 'obj_start',
       name: 'piston_assembly.obj',
       primitive: 'piston',
+      pos: [0, 0, 0],
       deform: 'none',
       deformAmount: 0,
       material: 'chrome',
@@ -596,7 +683,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
 
   /* --- actions -------------------------------------------------- */
   const addPrimitive = (id: PrimitiveId) => {
-    const obj = newObject(id, frame);
+    const obj = newObject(id, objects.length, frame);
     setObjects((prev) => [...prev, obj]);
     setSelectedId(obj.id);
     setTool('model');
@@ -626,6 +713,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       ...selected,
       id: `obj_${++objectSerial}`,
       name: `${selected.primitive}_${objectSerial}.obj`,
+      pos: ringPlacement(objects.length),
       keys: selected.keys.map((k) => ({ ...k })),
     };
     setObjects((prev) => [...prev, copy]);
@@ -1153,7 +1241,7 @@ export const WavefrontExplorerApp: React.FC<WavefrontExplorerAppProps> = ({
       id: 'file',
       label: 'File',
       items: [
-        { label: 'New Scene', action: () => { setObjects([newObject('cube', frame)]); setStatus('New scene.'); } },
+        { label: 'New Scene', action: () => { setObjects([newObject('cube', 0, frame)]); setStatus('New scene.'); } },
         { label: 'Save Scene...', action: () => setStatus('save: /usr/people/guest/scenes/piston.wff (the .wff/.obj scene formats)') },
         { label: 'Load Object...', action: () => setStatus('Reading obj/tri/BYU/SLG formats from the geometry library.') },
         { label: 'Quit (kill the window)', action: () => setStatus('Use the 4Dwm window menu to close an application.') },

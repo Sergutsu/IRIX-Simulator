@@ -232,7 +232,9 @@ export function makePlane(size = 2, seg = 6): Mesh {
   const idx = (iu: number, iv: number) => iv * (seg + 1) + iu;
   for (let iv = 0; iv < seg; iv++) {
     for (let iu = 0; iu < seg; iu++) {
+      // double sided, so back-face removal cannot hide the plane
       faces.push([idx(iu, iv), idx(iu + 1, iv), idx(iu + 1, iv + 1), idx(iu, iv + 1)]);
+      faces.push([idx(iu, iv + 1), idx(iu + 1, iv + 1), idx(iu + 1, iv), idx(iu, iv)]);
     }
   }
   return { name: 'plane', verts, faces };
