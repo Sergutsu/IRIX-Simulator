@@ -199,6 +199,14 @@ flock previewed in the control panel is exactly the flock that takes over the sc
   to `/usr/people/guest/.ep_script` by the control panel, so `cat ~/.ep_script` in Winterm shows the
   real command vocabulary.
 
+Twelve moments from one run of the simulated saver — the shell tightens into rings and ribbons,
+spirals, and blown-apart swarms as the script re-targets `twst`, `arm`, `flp`, `n` and `zoom`:
+
+![ElectroPaint simulation](images/electropaint-simulation.png)
+
+Compare against the genuine capture in
+`public/screenshots/electropaint-saver-torus-flock.png`.
+
 ---
 
 ## 5. Wavefront Explorer — the Maya predecessor
