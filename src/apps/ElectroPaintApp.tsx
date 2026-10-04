@@ -53,6 +53,7 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
   onSaveFile,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<EpState>(createEpState({ blend: true }));
   const [, forceUpdate] = useState(0);
   const [frozen, setFrozen] = useState(false);
@@ -66,6 +67,24 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
     const node = vfs.find((n) => n.path === SCRIPT_PATH);
     return node?.content ?? null;
   }, [vfs]);
+
+  useEffect(() => {
+    const wrap = viewportRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const resize = () => {
+      const w = Math.max(160, Math.floor(wrap.clientWidth));
+      const h = Math.max(120, Math.floor(wrap.clientHeight));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let raf = 0;
@@ -359,7 +378,10 @@ export const ElectroPaintApp: React.FC<ElectroPaintAppProps> = ({
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* IRIS GL window */}
-        <div style={{ flex: 1, minWidth: '220px', background: '#000', position: 'relative' }}>
+        <div
+          ref={viewportRef}
+          style={{ flex: 1, minWidth: '220px', background: '#000', position: 'relative' }}
+        >
           <canvas
             ref={canvasRef}
             width={520}

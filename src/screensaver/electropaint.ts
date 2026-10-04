@@ -603,12 +603,16 @@ export function drawEpFrame(
     // `flp` sets how far the whole flock is flipped out of the shell,
     // `wrst` rolls each flap around its own axis, `spn` adds the slow tumble
     const foldAngle =
-      Math.abs(flip) * 1.15 + foldAmt * (0.55 + Math.abs(flip) * 0.5) + spin * 0.35;
+      Math.abs(flip) * 1.15 +
+      foldAmt * (0.62 + Math.abs(flip) * 0.5) +
+      spin * 0.35 +
+      tri.roll * 0.12;
     const rollAngle = wrist * (0.55 + 0.45 * Math.sin(t * 0.5 + i * 0.29));
 
-    const halfBase = 0.20 * size * tri.width;
-    const halfH = halfBase * 0.45;
-    const apexLen = 0.42 * size * (0.55 + 0.65 * tri.fold);
+    // the flaps read as chunky quads/triangles, not needles
+    const halfBase = 0.27 * size * tri.width;
+    const halfH = halfBase * 0.5;
+    const apexLen = 0.34 * size * (0.7 + 0.55 * tri.fold);
 
     const local: V3[] = state.squares
       ? [
