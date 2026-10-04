@@ -106,6 +106,14 @@ export const Toolchest: React.FC<ToolchestProps> = ({
               dividerAfter: true,
             },
             {
+              label: 'Screen Saver...',
+              action: () => onLaunchApp('screensaver'),
+            },
+            {
+              label: 'Background / Desktop Pattern...',
+              action: () => onLaunchApp('system_manager', { tab: 'customize' }),
+            },
+            {
               label: 'Windows & Desktop Settings...',
               action: () => onLaunchApp('system_manager', { tab: 'customize' }),
             },
@@ -135,6 +143,10 @@ export const Toolchest: React.FC<ToolchestProps> = ({
           label: 'Empty Dumpster',
           action: onEmptyDumpster,
           dividerAfter: true,
+        },
+        {
+          label: 'Run Screen Saver Now (screen_blanker)',
+          action: () => onLaunchApp('screensaver'),
         },
         {
           label: 'Lock Screen (clogin)',
@@ -195,6 +207,36 @@ export const Toolchest: React.FC<ToolchestProps> = ({
       ],
     },
     {
+      id: 'Wavefront',
+      label: 'WAVEFRONT Products',
+      items: [
+        {
+          label: 'Explorer 2.0 (Maya predecessor)',
+          action: () => onLaunchApp('explorer', { mode: 'model' }),
+        },
+        {
+          label: 'Modeler / director (TAV)',
+          action: () => onLaunchApp('explorer', { mode: 'model' }),
+        },
+        {
+          label: 'Property (materials)',
+          action: () => onLaunchApp('explorer', { mode: 'shade' }),
+        },
+        {
+          label: 'Kinemation (animation)',
+          action: () => onLaunchApp('explorer', { mode: 'animate' }),
+        },
+        {
+          label: 'Preview / display (render)',
+          action: () => onLaunchApp('explorer', { mode: 'render' }),
+        },
+        {
+          label: 'fcheck (frame/sequence review)',
+          action: () => onLaunchApp('fcheck'),
+        },
+      ],
+    },
+    {
       id: 'Find',
       label: 'Find',
       items: [
@@ -240,6 +282,11 @@ export const Toolchest: React.FC<ToolchestProps> = ({
         {
           label: 'Switch SGI Workstation Hardware...',
           action: () => onLaunchApp('system_manager', { tab: 'hardware' }),
+          dividerAfter: true,
+        },
+        {
+          label: 'Real IRIX Screenshot Reference Gallery',
+          action: () => onLaunchApp('reference'),
         },
       ],
     },
@@ -267,6 +314,28 @@ export const Toolchest: React.FC<ToolchestProps> = ({
         {
           label: 'IconSmith (.FTI Vector Icon Editor)',
           action: () => onLaunchApp('iconsmith'),
+          dividerAfter: true,
+        },
+        {
+          label: 'ElectroPaint — Dancing Polygons Screen Saver',
+          action: () => onLaunchApp('electropaint'),
+        },
+        {
+          label: 'ElectroPaint — Run Full Screen Now',
+          action: () => onLaunchApp('screensaver'),
+        },
+        {
+          label: 'Bounce / Hopalong Saver Modules',
+          action: () => onLaunchApp('screensaver'),
+          dividerAfter: true,
+        },
+        {
+          label: 'Wavefront Explorer 2.0 (Maya predecessor)',
+          action: () => onLaunchApp('explorer'),
+        },
+        {
+          label: 'fcheck — Image & Movie Sequence Viewer',
+          action: () => onLaunchApp('fcheck'),
         },
       ],
     },
@@ -289,6 +358,11 @@ export const Toolchest: React.FC<ToolchestProps> = ({
         {
           label: '4Dwm & Indigo Magic UI Guidelines',
           action: () => onLaunchApp('insight', { chapter: '4dwm' }),
+          dividerAfter: true,
+        },
+        {
+          label: 'Real IRIX Screenshots (compare the simulation)',
+          action: () => onLaunchApp('reference'),
         },
       ],
     },

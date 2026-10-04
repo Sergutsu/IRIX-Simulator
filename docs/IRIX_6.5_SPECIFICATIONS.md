@@ -1,4 +1,4 @@
-# SGI IRIX 6.5 OS Simulator — Web Framework Selection, System Specifications & Vector Icon Architecture
+# SGI IRIX 6.5 OS Simulator — Web Framework Selection, System Specifications, Vector Icon Architecture, Screen Savers & Wavefront Explorer
 
 ## 1. Web Framework Evaluation & Selection for OS Simulation
 
@@ -125,3 +125,155 @@ TYPE ShowcaseApp
 ```
 
 In this simulator, both the **layered `.ftr` Magic Carpet composition** and a complete **`.fti` IRIS GL Parser + Interactive `IconSmith` Vector Editor** are implemented in `src/icons/ftiEngine.ts` and `src/icons/irixIconSet.ts`.
+
+---
+
+## 4. Screen Savers, `screen_blanker` and ElectroPaint
+
+### 4.1 The blanking model
+
+After the idle period configured in **Toolchest → Desktop → Customize → Screen Saver**, the IRIX
+desktop handed the display to `screen_blanker`, which ran one of the installed screen saver
+modules full screen. Modules are ordinary IRIS GL programs listed by display name in the control
+panel — which is why third party saver packages (the famous **HayeSavers** collection, for example)
+could simply be dropped onto a machine and picked up by the menu without recompiling anything.
+
+| Module | File | Behaviour |
+| :--- | :--- | :--- |
+| ElectroPaint | `/usr/lib/screens/electropaint` | Triangles and squares wheeling, spinning, flipping and folding in an endless colour-shifting pattern. |
+| Hopalong | `/usr/lib/screens/spaceplants` | Plane fractal orbits ("space plants") grown one point at a time, from a 1986 *Scientific American* article. |
+| Bounce | `/usr/lib/screens/bounce` | The SGI demo of a lit, squashing rubber ball on a checkerboard floor. |
+| Blank | `/usr/lib/screens/blank` | Plain blanker; used by the console lock and monitor power saving. |
+
+### 4.2 ElectroPaint (TM), 1986, David A. Tristram
+
+ElectroPaint is *the* SGI screen saver, and it shipped in two flavours: the screen saver itself and
+an interactive version launched as `ep -c`, which attached a **Panel Library** control panel.
+
+The artwork is a flock of flat-shaded, alpha blended polygons that fold in three dimensions. The
+choreography comes from an **ASCII animation script** (`actset:`, `actreset:`, `duration:`,
+`variance:`, `seqloop:`, `seqname:`, `frame:`), and later IRIX releases shipped a default script
+which could be dumped and read back as text. Without the script the saver sits still — the script is
+what makes it move.
+
+Every slider is a Panel Library *multi-slider* widget:
+
+```
+ ___
+| R |      reset button
+|---|
+| X |      change slider type: wrap  <->  bounce
+|---|
+|sld|      small sub-slider which animates the main slider
+|---|
+|hhh|      maximum value
+|sss|      current value
+|lll|      minimum value
+|___|
+|lbl|      label
+'---'
+```
+
+| Acronym | Meaning | Acronym | Meaning |
+| :--- | :--- | :--- | :--- |
+| `whl` | wheel (type of rotation) | `sz` | size |
+| `spn` | spin | `zoom` | camera push |
+| `flp` | flip | `spd` | speed |
+| `arm` | arm | `n` | max number of visible triangles |
+| `wrst` | wrist | `rat` | colour change rate |
+| `twst` | twist | `rng` | colormap range |
+
+Later IRIS GT versions added lighting, alpha blending and RGB mode; the first versions were
+colormapped. In this simulator the saver module and the `ep -c` application share one engine, so the
+flock previewed in the control panel is exactly the flock that takes over the screen.
+
+### 4.3 Implementation notes
+
+* Deterministic `drand48`-compatible RNG (48-bit LCG) — the original relied on the random seed, so
+  every launch looks different.
+* Six rotation axes (`whl`, `spn`, `flp`, `arm`, `wrst`, `twst`) applied to a ring of hinged flaps;
+  `arm` lifts the ring into a cylinder/cone, `twst` controls how far the chain winds.
+* IRIS GT style flat shading with one light plus per-polygon alpha blending, graded against the real
+  captures in `public/screenshots/electropaint-saver-torus-flock.png`.
+* The default script lives in `src/screensaver/electropaint.ts` (`EP_DEFAULT_SCRIPT`) and is written
+  to `/usr/people/guest/.ep_script` by the control panel, so `cat ~/.ep_script` in Winterm shows the
+  real command vocabulary.
+
+Twelve moments from one run of the simulated saver — the shell tightens into rings and ribbons,
+spirals, and blown-apart swarms as the script re-targets `twst`, `arm`, `flp`, `n` and `zoom`:
+
+![ElectroPaint simulation](images/electropaint-simulation.png)
+
+Compare against the genuine capture in
+`public/screenshots/electropaint-saver-torus-flock.png`.
+
+---
+
+## 5. Wavefront Explorer — the Maya predecessor
+
+### 5.1 Product lineage
+
+```text
+Wavefront Technologies            Thomson Digital Images
+The Advanced Visualizer (TAV)     Explore / IPR / 3Design
+Model · Paint · Property              (acquired by SGI, 1993)
+Dynamation · Kinemation
+Preview · Composer · fcheck
+              \                    /
+               Alias|Wavefront (SGI, February 1995)
+                          |
+        PowerAnimator + Wavefront Explorer
+                          |
+              Maya 1.0 — January 1998
+```
+
+TAV was a set of loosely coupled, lightweight IRIS GL programs that started quickly and could be run
+several instances at a time against the same project — Model, Paint, Dynamation (particles and rigid
+bodies), Kinemation (character rigging, SmartSkin), Preview and fcheck. Explore contributed the
+gestural (radial) menus, IPR, and a shader-first asset hierarchy. The next generation system built on
+both was announced as Maya; this simulator recreates the Explorer-era interface.
+
+### 5.2 Module mapping as simulated
+
+| Wavefront module | Simulated module | Features |
+| :--- | :--- | :--- |
+| `Modeler` / `director` (TAV) | **Model** | 8 primitives including the demo-reel *Piston Assembly*, bend / twist / taper deformers, scene object list, duplicate / delete. |
+| `Property` / IPR | **Shade** | Material library (chrome, gold, copper, jade, plastics, glass, matte clay) with diffuse RGB, specular, shine and transparency; wireframe / hidden line / flat / Gouraud / ray traced display. |
+| `Kinemation` | **Animate** | Keyframes on the rotation channels, 24 fps playback, timeline scrub with key ticks. |
+| `Preview` / `Display` | **Render** | Resolution selector (320×240, 640×480, 1024×768), render progress, and frames written into the XFS filesystem at `/usr/people/guest/renders/`. |
+| `fcheck` | **fcheck** | Image and sequence viewer that plays the rendered frames back. |
+
+### 5.3 Interface details reproduced
+
+* **Gestural (radial) menu** — right click in the viewport, exactly as Explore did; the Maya marking
+  menus descend from it.
+* **Inverted, shader-first hierarchy** — materials are assigned by dropping geometry under the shader.
+* **Software IRIS GL pipeline** — painter's algorithm with back-face aware flat/Gouraud shading, a
+  single default light with Phong specular, black viewport, and the product wordmark in the corner.
+* Optionally, renders land in the File Manager Content Viewer and in `fcheck`, so the whole
+  Explorer → fcheck → Composer → video-deck pipeline story is walkable.
+
+---
+
+## 6. Real IRIX Reference Screenshots
+
+Genuine captures of IRIX 6.5 machines ship with the simulator in
+`public/screenshots/` and are mounted on the virtual workstation at
+`/usr/people/guest/screenshots`. They are catalogued — with source, credit and the detail each one
+documents — in `src/reference/irixScreenshots.ts`, and are browsable in the **Real IRIX Screenshot
+Reference Gallery** (Toolchest → System → Real IRIX Screenshot Reference Gallery, the `screenshots`
+command in Winterm, or the desktop `screenshots` icon).
+
+What the set is used to tune:
+
+1. **Toolchest** title bar colour and row metrics, the 3D drawer cascade glyphs, and the real
+   `Desktop → Customize` menu order (including *Screen Saver*, *Environment Setup*, *Set Hot Spot*).
+2. **Desks Overview (`ov`)** panes, and the dithered/teal stippled root window pattern reproduced by
+   the `.irix-stipple` CSS layer.
+3. **ViewKit** widget dressings — the menu bar order (Application, Edit, Lists, Busy, Dialogs,
+   Preferences…), the *SgBusyPopup* "Wait a bit." dialog, mauve completion fields, diamond
+   preference toggles, and the OK / Apply / Cancel button rows.
+4. **The file window** — mauve path bar, the thumbwheel roller that scales the vector icons
+   continuously, and the lower Content Viewer pane previewing images (IRIX did this in 1993).
+5. **`fsn`** — green ground plane, directory pedestals, spotlight cones and the age legend.
+6. **ElectroPaint** mid-flock, for colour saturation and flat shading.

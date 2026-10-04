@@ -260,6 +260,21 @@ export const FileManagerApp: React.FC<FileManagerAppProps> = ({
                     state={isSelected ? 'selected' : 'normal'}
                     size={iconScale}
                   />
+                  {node.imageUrl && (
+                    /* image files get a real thumbnail, exactly as the IRIX Content Viewer did */
+                    <img
+                      src={node.imageUrl}
+                      alt={node.name}
+                      title={node.name}
+                      style={{
+                        marginTop: '-4px',
+                        maxWidth: `${iconScale + 26}px`,
+                        maxHeight: `${Math.round(iconScale * 0.78)}px`,
+                        border: '1px solid #223',
+                        background: '#000',
+                      }}
+                    />
+                  )}
                   <span
                     style={{
                       marginTop: '4px',
@@ -337,10 +352,27 @@ export const FileManagerApp: React.FC<FileManagerAppProps> = ({
                   Content Viewer: {selectedNode.path} ({selectedNode.permissions},{' '}
                   {selectedNode.size}B, tag {selectedNode.tagHex})
                 </div>
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
-                  {selectedNode.content ||
-                    `SGI IRIX 6.5 ELF N32 MSB Executable (${selectedNode.path})\nDouble-click to launch via 4Dwm File Typing Rules (.ftr).`}
-                </pre>
+                {selectedNode.imageUrl ? (
+                  /* 4Dwm Content Viewer previews images inline — IRIX did this in 1993,
+                     years before any other desktop bothered. */
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                    <img
+                      src={selectedNode.imageUrl}
+                      alt={selectedNode.name}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '78px',
+                        border: '1px solid rgba(255,255,255,0.4)',
+                        background: '#000',
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                    {selectedNode.content ||
+                      `SGI IRIX 6.5 ELF N32 MSB Executable (${selectedNode.path})\nDouble-click to launch via 4Dwm File Typing Rules (.ftr).`}
+                  </pre>
+                )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

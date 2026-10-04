@@ -16,19 +16,56 @@ Full technical specifications, framework selection analysis, and `.fti` vector i
   - Includes the layered `.ftr` **Magic Carpet** (`generic.exec.closed.fti` / `generic.exec.open.fti`) that turns **SGI Yellow** when selected and glows blue when launched.
   - Interactive **Motif Thumbwheel (`SgThumbWheel`)** in `Icon Catalog` and `File Manager` scales vector icons continuously in real time.
   - Built-in **IconSmith** vector editor to drag vertices on a 30° isometric grid, recolor paths, edit live `.fti` code, and export `.fti` or `.svg`.
-- **12 Interactive IRIX 6.5 Applications**:
-  1. **Toolchest** — Top-left cascading desktop command menu with 3D drawer glyphs.
+- **17 Interactive IRIX 6.5 Applications**:
+  1. **Toolchest** — Cascading desktop command menu with 3D drawer glyphs, authentic item order (`Desktop`, `Selected`, `Internet`, `WAVEFRONT Products`, `Find`, `System`, `SGI Demos`, `Help`).
   2. **Icon Catalog (`iconbook`)** — Tabbed binder with real-time thumbwheel vector icon scaling.
-  3. **IconSmith (`iconsmith`)** — Interactive `.fti` vector icon editor & 24-icon SGI library.
+  3. **IconSmith (`iconsmith`)** — Interactive `.fti` vector icon editor & 27-icon SGI library.
   4. **`gr_osview`** — Real-time graphical multi-CPU, memory, system activity, and graphics pipeline monitor.
   5. **`fsn` (3D File System Navigator)** — The 1993 *Jurassic Park* ("It's a UNIX system!") 3D perspective XFS file browser with spotlight cones and radar overview.
-  6. **Winterm (`xwsh`)** — IRIX 6.5 UNIX shell supporting `hinv -v`, `uname -aR`, `sgifetch`, `versions`, `df -k`, `ps -ef`, `ls`, `cd`, `cat`, `tag -q`, and app launching.
-  7. **Desktop File Manager (`fm`)** — Mauve path bar, thumbwheel vector zoom, and split Content Viewer pane.
+  6. **Winterm (`xwsh`)** — IRIX 6.5 UNIX shell supporting `hinv -v`, `uname -aR`, `sgifetch`, `versions`, `df -k`, `ps -ef`, `ls`, `cd`, `cat`, `tag -q`, `ep`, `screens`, `explorer`, `fcheck`, and app launching.
+  7. **Desktop File Manager (`fm`)** — Mauve path bar, thumbwheel vector zoom, and split Content Viewer pane that previews real images inline.
   8. **SGI 3D OpenGL & Buttonfly Showcase** — Interactive 3D SGI Cube, Buttonfly 3D flipping polyhedra, Odyssey NURBS Torus Knot, and IndyCam/O2cam live visualizer.
   9. **System Manager (`sysmgr`)** — Live hardware switching between **SGI Octane2 (`IP30`)**, **SGI O2 (`IP32`)**, **SGI Indy (`IP24`)**, and **SGI Onyx2 (`IP27`)**, plus Process Manager and Audio SoundScheme synthesizer.
   10. **Software Manager 4.1 (`swmgr`)** — Subsystem installer with 3D disk space cylinder pie chart.
-  11. **SGI InSight Online Books (`insight`)** — Built-in reader for the IRIX 6.5 Specifications, Web Framework Analysis, and `.FTI` Icon Set guide.
+  11. **SGI InSight Online Books (`insight`)** — Reader with 7 chapters: Web Framework Analysis, IRIX 6.5 Specifications, `.FTI` Icon Set, 4Dwm UI Guidelines, **Screen Savers / ElectroPaint**, **Wavefront Explorer**, and **Real IRIX Screenshots**.
   12. **Netscape Communicator 4.78 (`[SGI]`) & `jot` Text Editor**.
+  13. **Screen Saver control panel (`screen_blanker`)** — `Toolchest → Desktop → Customize → Screen Saver`. Idle timeout, module list, live preview and screen locking, exactly as the real panel worked.
+  14. **ElectroPaint (`ep -c`)** — *The* SGI screen saver, the famous **"dancing polygons"**, as an application with its Panel Library control panel (`whl`, `spn`, `flp`, `arm`, `wrst`, `twst`, `sz`, `zoom`, `spd`, `n`, `rat`, `rng` multi-sliders, each with the `R` reset button, the `X` wrap/bounce toggle and the little `sld` sub-slider) and its ASCII animation script, which can be dumped to `~/.ep_script` and read back.
+  15. **Wavefront Explorer 2.0** — The **Maya predecessor** (TDI Explore + Wavefront's Advanced Visualizer), with Model / Shade / Animate / Render modules, primitive and deformer modelling, a material library, keyframed rotation channels on a 24 fps timeline, and render output written into the XFS filesystem. Also reachable as `director` in TAV's `/usr/local/wave`.
+  16. **`fcheck`** — The SGI image and movie sequence viewer, for flipping through rendered frames and image files.
+  17. **Real IRIX Screenshot Reference Gallery** — Genuine captures of IRIX 6.5 machines, shipped in `/usr/people/guest/screenshots`, each with its source, credit and a note on what it documents.
+
+- **IRIX Screen Savers** (`screen_blanker` modules, in `/usr/lib/screens`):
+  - `electropaint` — the dancing polygons (David A. Tristram, 1986).
+  - `spaceplants` — Hopalong plane fractal, the "space plants".
+  - `bounce` — the classic SGI demo of a lit rubber ball on a checkerboard floor.
+  - `blank` — the plain blanker used by the console lock.
+  - Idle blanking is live: leave the desktop alone and the saver takes the screen; move the mouse (or press a key) to come back, or set the panel to lock the console and it asks for the password first.
+
+- **Authentic look details tuned against real captures**: 4Dwm's dithered/stippled root window, the khaki Toolchest title bar, mauve Motif text fields (`#c8979b`), the `SgBusyPopup` "Wait a bit." busy dialog, SGI's italic Helvetica Bold Oblique titling, black IRIS GL viewports, and the `Set Key` / `Apply` / `Reset` button rows from ViewKit.
+
+## Reference Screenshots
+
+Real IRIX captures live in [`public/screenshots/`](public/screenshots) and on the
+virtual workstation in `/usr/people/guest/screenshots`. Each file keeps its source and
+credit next to it in [`src/reference/irixScreenshots.ts`](src/reference/irixScreenshots.ts),
+and the gallery lists what every capture is evidence for.
+
+## Development Scripts
+
+```bash
+# headless engine checks (ElectroPaint, all saver modules, Explorer renderer)
+node_modules/.bin/esbuild scripts/smoke.ts --bundle --platform=node --format=cjs \
+  --outfile=/tmp/smoke.cjs && node /tmp/smoke.cjs
+
+# render PNG previews of the saver and renderer without a browser
+node_modules/.bin/esbuild scripts/renderPreview.ts --bundle --platform=node --format=cjs \
+  --outfile=/tmp/preview.cjs && node /tmp/preview.cjs /tmp/irix-preview
+
+# server-render every window to catch component errors
+node_modules/.bin/esbuild scripts/ssr.ts --bundle --platform=node --format=cjs \
+  --loader:.css=text --outfile=/tmp/ssr.cjs && node /tmp/ssr.cjs
+```
 
 ## Running Locally
 
