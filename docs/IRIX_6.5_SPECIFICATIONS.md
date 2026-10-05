@@ -253,16 +253,21 @@ TAV was a set of loosely coupled, lightweight IRIS GL programs that started quic
 several instances at a time against the same project — Model, Paint, Dynamation (particles and rigid
 bodies), Kinemation (character rigging, SmartSkin), Preview and fcheck. Explore contributed the
 gestural (radial) menus, IPR, and a shader-first asset hierarchy. The next generation system built on
-both was announced as Maya; this simulator recreates the Explorer-era interface.
+both was announced as Maya. The photograph shows two 4Dwm windows: **The Director** (the launcher)
+and **Advanced Visualizer Model 4.2.1** (the modeler). The simulator opens them the same way. Model
+creates primitives, picks a hull, and edits translation, rotation, scale, deformers, materials and
+booleans. Paint, Property, Dynamation, Kinemation, Preview and Composer are separate windows.
 
 ### 5.2 Module mapping as simulated
 
 | Wavefront module | Simulated module | Features |
 | :--- | :--- | :--- |
-| `Modeler` / `director` (TAV) | **Model** | 8 primitives including the demo-reel *Piston Assembly*, bend / twist / taper deformers, scene object list, duplicate / delete. |
-| `Property` / IPR | **Shade** | Material library (chrome, gold, copper, jade, plastics, glass, matte clay) with diffuse RGB, specular, shine and transparency; wireframe / hidden line / flat / Gouraud / ray traced display. |
-| `Kinemation` | **Animate** | Keyframes on the rotation channels, 24 fps playback, timeline scrub with key ticks. |
-| `Preview` / `Display` | **Render** | Resolution selector (320×240, 640×480, 1024×768), render progress, and frames written into the XFS filesystem at `/usr/people/guest/renders/`. |
+| The Director | **The Director** | Launches each product into its own window. It does not draw the model. |
+| `Modeler` (TAV Model 4.2.1) | **Model** | Primitives including the winged kit and the demo-reel *Piston Assembly*, pick, move / rotate / scale, bend / twist / taper, union / difference / intersection, duplicate / mirror / delete, OBJ save. |
+| `Property` | **Property** | Assigns the shared scene's material and RGB tint. |
+| `Kinemation` | **Kinemation** | Rotation keys on the shared scene, 24 fps playback. |
+| `Preview` | **Preview** | Shades the shared scene and writes a frame under `/usr/people/guest/renders/`. |
+| `Paint` / `Dynamation` / `Composer` | own windows | Paint draws a plate, Dynamation runs a particle fountain, Composer grades the last frame. |
 | `fcheck` | **fcheck** | Image and sequence viewer that plays the rendered frames back. |
 
 ### 5.3 Interface details reproduced
@@ -281,10 +286,9 @@ both was announced as Maya; this simulator recreates the Explorer-era interface.
   keeps cylinders, spheres and tori smooth while boxes and the machined shoulders of the Piston
   Assembly stay crisp; 0° facets everything, 180° smooths the whole hull.
 
-Above: the simulated viewport in its default Gouraud mode — the Piston Assembly's turned shoulders
-and the torus shade as continuous surfaces, with only silhouette edges visible.
+The modeler opens on `winged_kit.mod` in the wireframe view from the photograph:
 
-![Wavefront Explorer smooth shading](images/explorer-gouraud-shading.png)
+![Alias|Wavefront Advanced Visualizer Model 4.2.1](images/alias-wavefront-advanced-visualizer-4.2.1.jpg)
 * Optionally, renders land in the File Manager Content Viewer and in `fcheck`, so the whole
   Explorer → fcheck → Composer → video-deck pipeline story is walkable.
 

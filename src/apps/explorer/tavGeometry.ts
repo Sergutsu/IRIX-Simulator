@@ -263,7 +263,85 @@ export function makePiston(): Mesh[] {
   return [body, skirt, crown, ring1, ring2, rod, pin];
 }
 
+/**
+ * A winged kit in the style of the Model 4.2.1 demo file `winged_kit.mod`:
+ * a head, beak, horns and two chord-wise wings, dense enough to read as an
+ * orange wireframe the way that capture does.
+ */
+export function makeWingedKit(): Mesh {
+  const wing = (side: number): Mesh => {
+    const rows = 6;
+    const cols = 9;
+    const verts: Vec3[] = [];
+    const faces: number[][] = [];
+    for (let r = 0; r <= rows; r++) {
+      for (let c = 0; c <= cols; c++) {
+        const u = c / cols;
+        const v = r / rows;
+        const chord = Math.sin(u * Math.PI);
+        verts.push([
+          0.35 + u * 0.45 - v * 0.15,
+          0.05 + v * (0.25 + u * 1.35),
+          side * (0.2 + u * 1.55 * Math.max(0.25, chord)),
+        ]);
+      }
+    }
+    const idx = (r: number, c: number) => r * (cols + 1) + c;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        faces.push([idx(r, c), idx(r, c + 1), idx(r + 1, c + 1), idx(r + 1, c)]);
+      }
+    }
+    return { name: side > 0 ? 'wing_l' : 'wing_r', verts, faces };
+  };
+
+  return mergeMeshes(
+    [
+      transformMesh(
+        makeSphere(0.55, 16, 11),
+        matMul(matScale(1.25, 0.82, 0.9), matTranslate(-0.2, 0.28, 0)),
+        'head'
+      ),
+      transformMesh(
+        makeCone(0.2, 0.85, 12),
+        matMul(matTranslate(-1.05, 0.12, 0), matRotZ(Math.PI / 2)),
+        'beak'
+      ),
+      transformMesh(
+        makeCone(0.1, 0.48, 8),
+        matMul(matTranslate(-0.85, -0.08, 0), matRotZ(Math.PI / 2.15)),
+        'jaw'
+      ),
+      transformMesh(
+        makeCone(0.07, 0.62, 8),
+        matMul(matTranslate(-0.15, 0.78, 0.22), matRotX(0.35)),
+        'horn_l'
+      ),
+      transformMesh(
+        makeCone(0.07, 0.62, 8),
+        matMul(matTranslate(-0.15, 0.78, -0.22), matRotX(-0.35)),
+        'horn_r'
+      ),
+      transformMesh(makeCylinder(0.26, 0.62, 12, true), matTranslate(0.4, -0.12, 0), 'neck'),
+      transformMesh(
+        makeSphere(0.62, 14, 10),
+        matMul(matScale(1.45, 0.62, 0.72), matTranslate(1.2, -0.32, 0)),
+        'body'
+      ),
+      wing(1),
+      wing(-1),
+      transformMesh(
+        makeCone(0.16, 0.95, 10),
+        matMul(matTranslate(2.15, -0.15, 0), matRotZ(-Math.PI / 2)),
+        'tail'
+      ),
+    ],
+    'winged_kit'
+  );
+}
+
 export const PRIMITIVE_LIBRARY = [
+  { id: 'winged', label: 'Winged Kit' },
   { id: 'cube', label: 'Cube' },
   { id: 'tetrahedron', label: 'Tetrahedron' },
   { id: 'sphere', label: 'Sphere' },
@@ -292,6 +370,8 @@ export function buildPrimitive(id: PrimitiveId): Mesh {
       return makeTorus();
     case 'plane':
       return makePlane(1.8, 6);
+    case 'winged':
+      return makeWingedKit();
     case 'piston':
       return mergeMeshes(makePiston(), 'piston');
     default:

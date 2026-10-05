@@ -250,6 +250,8 @@ export type AppId =
   | 'screensaver'
   | 'electropaint'
   | 'explorer'
+  | 'director'
+  | 'aw_module'
   | 'reference'
   | 'fcheck'
   | 'gr_osview'
@@ -258,6 +260,7 @@ export type AppId =
   | 'file_manager'
   | 'fsn'
   | 'gl_showcase'
+  | 'ivcalc'
   | 'system_manager'
   | 'software_manager'
   | 'insight'
@@ -296,6 +299,8 @@ export interface VfsNode {
   owner: string;
   tagHex: string;
   appId?: AppId;
+  /** extra launch arguments, for example which Alias|Wavefront module to open */
+  payload?: Record<string, unknown>;
   /** for real reference screenshots shipped in /usr/people/guest/screenshots */
   imageUrl?: string;
   content?: string;
@@ -699,6 +704,40 @@ QUICK GUIDE TO THIS WORKSTATION:
     appId: 'screensaver',
   },
   {
+    path: '/usr/demos',
+    name: 'demos',
+    type: 'dir',
+    iconId: 'folder',
+    size: 512,
+    mtime: 'Jun 15 1998',
+    permissions: 'drwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00000001',
+  },
+  {
+    path: '/usr/demos/Inventor',
+    name: 'Inventor',
+    type: 'dir',
+    iconId: 'folder',
+    size: 512,
+    mtime: 'Jun 15 1998',
+    permissions: 'drwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00000001',
+  },
+  {
+    path: '/usr/demos/Inventor/ivcalc',
+    name: 'ivcalc',
+    type: 'exec',
+    iconId: 'showcase',
+    size: 184320,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x000090B0',
+    appId: 'ivcalc',
+  },
+  {
     path: '/usr/sbin/ep',
     name: 'ep',
     type: 'exec',
@@ -769,7 +808,7 @@ QUICK GUIDE TO THIS WORKSTATION:
     permissions: '-rwxr-xr-x',
     owner: 'root',
     tagHex: '0x0000A100',
-    appId: 'explorer',
+    appId: 'director',
   },
   {
     path: '/usr/local/wave/Modeler',
@@ -793,7 +832,73 @@ QUICK GUIDE TO THIS WORKSTATION:
     permissions: '-rwxr-xr-x',
     owner: 'root',
     tagHex: '0x0000A101',
-    appId: 'explorer',
+    appId: 'aw_module',
+    payload: { module: 'property', title: 'Property — Alias|Wavefront' },
+  },
+  {
+    path: '/usr/local/wave/Paint',
+    name: 'Paint',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A102',
+    appId: 'aw_module',
+    payload: { module: 'paint', title: 'Paint — Alias|Wavefront' },
+  },
+  {
+    path: '/usr/local/wave/Dynamation',
+    name: 'Dynamation',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A103',
+    appId: 'aw_module',
+    payload: { module: 'dynamation', title: 'Dynamation — Alias|Wavefront' },
+  },
+  {
+    path: '/usr/local/wave/Kinemation',
+    name: 'Kinemation',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A104',
+    appId: 'aw_module',
+    payload: { module: 'kinemation', title: 'Kinemation — Alias|Wavefront' },
+  },
+  {
+    path: '/usr/local/wave/Preview',
+    name: 'Preview',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A105',
+    appId: 'aw_module',
+    payload: { module: 'preview', title: 'Preview — Alias|Wavefront' },
+  },
+  {
+    path: '/usr/local/wave/Composer',
+    name: 'Composer',
+    type: 'exec',
+    iconId: 'explorer',
+    size: 1048576,
+    mtime: 'Mar 12 1996',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x0000A106',
+    appId: 'aw_module',
+    payload: { module: 'composer', title: 'Composer — Alias|Wavefront' },
   },
   {
     path: '/usr/local/wave/WAVEFRONT_Explorer_README',

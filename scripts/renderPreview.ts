@@ -15,7 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createEpState, stepEp, drawEpFrame } from '../src/screensaver/electropaint';
 import { SCREEN_SAVER_MODULES } from '../src/screensaver/saverModules';
-import { drawScene, ExplorerObject } from '../src/apps/WavefrontExplorerApp';
+import { drawScene, type ExplorerObject } from '../src/apps/explorer/drawScene';
 import { buildPrimitive, PrimitiveId } from '../src/apps/explorer/tavGeometry';
 
 /* ---------------- PNG writer ---------------- */

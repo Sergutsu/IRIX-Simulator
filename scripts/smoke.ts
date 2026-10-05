@@ -22,8 +22,11 @@ import {
   PrimitiveId,
   DeformId,
 } from '../src/apps/explorer/tavGeometry';
-import { drawScene, objectRotationAt, ExplorerObject } from '../src/apps/WavefrontExplorerApp';
+import { drawScene, objectRotationAt, pickObject, type ExplorerObject } from '../src/apps/explorer/drawScene';
+import { booleanHulls, cameraBasis, sceneToObj } from '../src/apps/explorer/modelOps';
 import { MIN_SCREEN_H, MIN_SCREEN_W, clampWindow, fitScreen, placeWindow, setScreenMetrics } from '../src/state/screen';
+import { calcSequence } from '../src/apps/ivcalc/engine';
+import { HOME_POSE, drawCalculator, keyFacesCamera, keyScreenPoint, pickCalcKey } from '../src/apps/ivcalc/scene';
 
 let problems = 0;
 const fail = (msg: string) => {
@@ -173,6 +176,83 @@ ok(`${PRIMITIVE_LIBRARY.length} primitives built, deformers finite`);
   const end = objectRotationAt(objects[0], 200);
   if (Math.abs(end[1] - 6.28) > 1e-6) fail('extrapolation past the last key is wrong');
   else ok('poses hold after the last keyframe');
+
+  const right = cameraBasis({ yaw: 0, pitch: 0, dist: 5, target: [0, 0, 0] }).right;
+  if (Math.abs(right[0] - 1) > 1e-6 || Math.abs(right[1]) > 1e-6) fail(`camera right at yaw 0 is ${right}`);
+  else ok('camera-relative move basis points along +X when the camera looks down -Z');
+
+  const hull = (id: string, primitive: ExplorerObject['primitive'], pos: [number, number, number]): ExplorerObject => ({
+    id,
+    name: `${primitive}.mod`,
+    primitive,
+    pos,
+    rot: [0, 0, 0],
+    scale: [1, 1, 1],
+    deform: 'none',
+    deformAmount: 0,
+    material: 'gold',
+    keys: [{ frame: 0, rx: 0, ry: 0, rz: 0 }],
+    visible: true,
+  });
+  const cube = hull('cube', 'cube', [0, 0, 0]);
+  const sphere = hull('sphere', 'sphere', [1.2, 0, 0]);
+  const union = booleanHulls(cube, sphere, 'union');
+  const cubeVerts = 8;
+  if (!union?.baked || union.baked.verts.length <= cubeVerts) fail('union did not merge the two hulls');
+  else ok(`boolean union baked ${union.baked.verts.length} vertices`);
+  const diff = booleanHulls(cube, sphere, 'difference');
+  if (!diff?.baked || diff.baked.faces.length >= 6 || diff.baked.faces.length < 1) {
+    fail(`difference faces ${diff?.baked?.faces.length ?? 'none'}`);
+  } else ok(`boolean difference kept ${diff.baked.faces.length} of 6 cube faces`);
+  const obj = sceneToObj([cube]);
+  if (!obj.includes('o cube.mod') || !obj.includes('\nv ')) fail('OBJ export missing object or vertex');
+  else ok('scene exports Wavefront OBJ');
+  const hit = pickObject([cube, sphere], { yaw: 0.4, pitch: 0.3, dist: 6, target: [0, 0, 0] }, 0, 160, 120, 320, 240);
+  if (hit !== 'cube' && hit !== 'sphere' && hit !== null) fail(`pick returned ${hit}`);
+  else ok(`pick sample returned ${hit ?? 'empty'}`);
+}
+
+/* ------------------------------------------------------------------ *
+ * IVcalc                                                              *
+ * ------------------------------------------------------------------ */
+console.log('IVcalc');
+{
+  const expect = (labels: string[], display: string) => {
+    const got = calcSequence(labels).display;
+    if (got !== display) fail(`${labels.join(' ')} => ${got}, expected ${display}`);
+  };
+  expect(['7', '0', '7', '7', '3'], '70773');
+  expect(['1', '2', '+', '7', '='], '19');
+  expect(['8', '*', '3', '='], '24');
+  expect(['9', '-', '2', '='], '7');
+  expect(['8', '/', '2', '='], '4');
+  expect(['1', '/', '0', '='], 'Error');
+  expect(['5', '+', 'CE', '3', '='], '8');
+  expect(['5', '+/-'], '-5');
+  expect(['2', '0', '0', '+', '1', '0', '%', '='], '220');
+  expect(['2', '+', '3', '*', '4', '='], '20');
+  expect(['2', '+', '3', '=', '='], '8');
+  expect(['1', '.', '5', '+', '2', '.', '5', '='], '4');
+  expect(['0', '0', '5'], '5');
+  expect(['1', '/', '0', '=', '7'], 'Error');
+  expect(['1', '/', '0', '=', 'AC', '4'], '4');
+  ok('calculator sequences: 70773, arithmetic, percent, chain, repeat equals, divide by zero');
+
+  if (!keyFacesCamera('7', HOME_POSE)) fail('key 7 does not face the home camera');
+  else ok('home view faces the keypad');
+  const point = keyScreenPoint('7', HOME_POSE, 640, 420);
+  const hit = point ? pickCalcKey(HOME_POSE, point.x, point.y, 640, 420, null) : null;
+  if (hit !== '7') fail(`pick on key 7 returned ${hit}`);
+  else ok('click hits the 7 key at the home angle');
+  const tumbled = { ...HOME_POSE, rx: HOME_POSE.rx + 0.4, ry: HOME_POSE.ry - 0.5 };
+  const point2 = keyScreenPoint('=', tumbled, 640, 420);
+  const hit2 = point2 ? pickCalcKey(tumbled, point2.x, point2.y, 640, 420, null) : null;
+  if (hit2 !== '=') fail(`pick on = after tumble returned ${hit2}`);
+  else ok('click still hits = after a tumble');
+  const { ctx, count } = makeStubCtx();
+  drawCalculator(ctx, 640, 420, HOME_POSE, null, '70773');
+  if (count() < 800) fail(`calculator draw produced too little geometry (${count()} vertices)`);
+  else ok(`drew the 3D calculator with polygon legends (${count()} vertices)`);
 }
 
 /* ------------------------------------------------------------------ *

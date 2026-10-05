@@ -57,7 +57,7 @@ export const FileManagerApp: React.FC<FileManagerAppProps> = ({
     if (node.name.endsWith('.fti')) {
       onLaunchApp('iconsmith', { iconId: node.iconId });
     } else if (node.appId) {
-      onLaunchApp(node.appId, { path: node.path });
+      onLaunchApp(node.appId, { ...(node.payload ?? {}), path: node.path });
     } else {
       onLaunchApp('jot', { path: node.path });
     }

@@ -41,6 +41,10 @@ import { JotApp } from './apps/JotApp';
 import { ScreenSaverApp, ScreenSaverConfig } from './apps/ScreenSaverApp';
 import { ElectroPaintApp } from './apps/ElectroPaintApp';
 import { WavefrontExplorerApp } from './apps/WavefrontExplorerApp';
+import { IVcalcApp } from './apps/IVcalcApp';
+import { DirectorApp } from './apps/DirectorApp';
+import { AwModuleApp } from './apps/AwModuleApp';
+import { isAwModuleId } from './apps/explorer/awProducts';
 import { ReferenceGalleryApp } from './apps/ReferenceGalleryApp';
 import { FcheckApp } from './apps/FcheckApp';
 import { ScreenBlanker } from './components/ScreenBlanker';
@@ -97,10 +101,10 @@ const DESKTOP_SHORTCUTS: DesktopShortcut[] = [
   },
   {
     id: 'explorer_desk',
-    label: 'explorer',
+    label: 'director',
     iconId: 'explorer',
     useMagicCarpet: true,
-    appId: 'explorer',
+    appId: 'director',
   },
   {
     id: 'fcheck_desk',
@@ -210,6 +214,12 @@ const APP_DEFAULTS: Record<
     width: 585,
     height: 425,
   },
+  ivcalc: {
+    title: 'IVcalc',
+    iconId: 'showcase',
+    width: 720,
+    height: 520,
+  },
   system_manager: {
     title: 'System Manager — silicon.sgi.com',
     iconId: 'sysmgr',
@@ -235,10 +245,22 @@ const APP_DEFAULTS: Record<
     height: 500,
   },
   explorer: {
-    title: 'WAVEFRONT EXPLORER 2.0 — Alias|Wavefront (Maya prototype)',
+    title: 'Advanced Visualizer Model 4.2.1',
     iconId: 'explorer',
-    width: 900,
-    height: 600,
+    width: 1080,
+    height: 740,
+  },
+  director: {
+    title: 'The Director — Alias|Wavefront',
+    iconId: 'explorer',
+    width: 640,
+    height: 460,
+  },
+  aw_module: {
+    title: 'Alias|Wavefront',
+    iconId: 'explorer',
+    width: 760,
+    height: 520,
   },
   reference: {
     title: 'Real IRIX Screenshot Reference Gallery',
@@ -360,11 +382,12 @@ export const App: React.FC = () => {
     setWindows((prev) => {
       const maxZ = prev.reduce((m, w) => Math.max(m, w.zIndex), 10);
       // Check if an instance of this app already exists on the active desk (or global)
-      const existing = prev.find(
-        (w) =>
-          w.appId === appId &&
-          (w.deskId === activeDesk || w.deskId === 'Global')
-      );
+      const existing = prev.find((w) => {
+        if (w.appId !== appId) return false;
+        if (w.deskId !== activeDesk && w.deskId !== 'Global') return false;
+        if (appId === 'aw_module') return String(w.payload?.module ?? '') === String(payload?.module ?? '');
+        return true;
+      });
 
       if (existing) {
         setActiveWinId(existing.id);
@@ -387,7 +410,8 @@ export const App: React.FC = () => {
       const newWin: WindowInstance = {
         id: `win_${appId}_${Date.now()}`,
         appId,
-        title: def.title,
+        title:
+          appId === 'aw_module' && typeof payload?.title === 'string' ? payload.title : def.title,
         iconId: def.iconId,
         deskId: activeDesk,
         x: at.x,
@@ -933,6 +957,16 @@ export const App: React.FC = () => {
                 onSaveFile={handleSaveFile}
               />
             )}
+            {win.appId === 'ivcalc' && <IVcalcApp />}
+            {win.appId === 'director' && <DirectorApp onLaunchApp={handleLaunchApp} />}
+            {win.appId === 'aw_module' && (
+              <AwModuleApp
+                module={isAwModuleId(String(win.payload?.module ?? '')) ? (win.payload?.module as 'paint') : 'property'}
+                colorScheme={colorScheme}
+                onLaunchApp={handleLaunchApp}
+                onSaveRender={handleSaveRender}
+              />
+            )}
             {win.appId === 'explorer' && (
               <WavefrontExplorerApp
                 colorScheme={colorScheme}
@@ -945,6 +979,7 @@ export const App: React.FC = () => {
                     | undefined
                 }
                 onSaveRender={handleSaveRender}
+                onSaveFile={handleSaveFile}
                 onLaunchApp={handleLaunchApp}
               />
             )}
@@ -1030,10 +1065,10 @@ export const App: React.FC = () => {
         <button
           type="button"
           className="sgi-btn"
-          onClick={() => handleLaunchApp('explorer')}
+          onClick={() => handleLaunchApp('director')}
           style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
         >
-          🎬 Wavefront Explorer
+          🎬 The Director
         </button>
         <button
           type="button"
@@ -1142,6 +1177,15 @@ export const App: React.FC = () => {
             className="sgi-menu-item"
             onClick={() => {
               setContextMenu(null);
+              handleLaunchApp('ivcalc');
+            }}
+          >
+            <span>IVcalc (3D calculator)</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
               handleLaunchApp('screensaver');
             }}
           >
@@ -1151,10 +1195,19 @@ export const App: React.FC = () => {
             className="sgi-menu-item"
             onClick={() => {
               setContextMenu(null);
+              handleLaunchApp('director');
+            }}
+          >
+            <span>The Director</span>
+          </div>
+          <div
+            className="sgi-menu-item"
+            onClick={() => {
+              setContextMenu(null);
               handleLaunchApp('explorer');
             }}
           >
-            <span>Wavefront Explorer 2.0 (Maya predecessor)</span>
+            <span>Advanced Visualizer Model 4.2.1</span>
           </div>
           <div
             className="sgi-menu-item"

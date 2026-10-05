@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppId, ColorSchemeId, DeskId, SgiColorScheme } from '../state/osStore';
+import { AW_PRODUCTS } from '../apps/explorer/awProducts';
 import { irixAudio } from '../sound/irixAudio';
 
 interface ToolchestProps {
@@ -219,29 +220,13 @@ export const Toolchest: React.FC<ToolchestProps> = ({
       label: 'WAVEFRONT Products',
       items: [
         {
-          label: 'Explorer 2.0 (Maya predecessor)',
-          action: () => onLaunchApp('explorer', { mode: 'model' }),
+          label: 'The Director',
+          action: () => onLaunchApp('director'),
         },
-        {
-          label: 'Modeler / director (TAV)',
-          action: () => onLaunchApp('explorer', { mode: 'model' }),
-        },
-        {
-          label: 'Property (materials)',
-          action: () => onLaunchApp('explorer', { mode: 'shade' }),
-        },
-        {
-          label: 'Kinemation (animation)',
-          action: () => onLaunchApp('explorer', { mode: 'animate' }),
-        },
-        {
-          label: 'Preview / display (render)',
-          action: () => onLaunchApp('explorer', { mode: 'render' }),
-        },
-        {
-          label: 'fcheck (frame/sequence review)',
-          action: () => onLaunchApp('fcheck'),
-        },
+        ...AW_PRODUCTS.map((product) => ({
+          label: product.id === 'model' ? 'Advanced Visualizer Model 4.2.1' : product.label,
+          action: () => onLaunchApp(product.appId, product.payload),
+        })),
       ],
     },
     {
@@ -315,6 +300,10 @@ export const Toolchest: React.FC<ToolchestProps> = ({
           action: () => onLaunchApp('gl_showcase', { mode: 'buttonfly' }),
         },
         {
+          label: 'IVcalc — Inventor 3D calculator',
+          action: () => onLaunchApp('ivcalc'),
+        },
+        {
           label: 'NURBS Torus Knot (Odyssey VPro)',
           action: () => onLaunchApp('gl_showcase', { mode: 'torus' }),
           dividerAfter: true,
@@ -338,7 +327,7 @@ export const Toolchest: React.FC<ToolchestProps> = ({
           dividerAfter: true,
         },
         {
-          label: 'Wavefront Explorer 2.0 (Maya predecessor)',
+          label: 'Advanced Visualizer Model 4.2.1',
           action: () => onLaunchApp('explorer'),
         },
         {

@@ -22,6 +22,38 @@ export interface IrixScreenshot {
 
 export const IRIX_REFERENCE_SCREENSHOTS: IrixScreenshot[] = [
   {
+    id: 'advanced_visualizer_model',
+    file: 'alias-wavefront-advanced-visualizer-4.2.1.jpg',
+    title: 'Alias|Wavefront Advanced Visualizer Model 4.2.1',
+    shows: [
+      'The Director shell: File, Applications, Utilities, Project Setup, Preferences, User Defined, Help',
+      'Model 4.2.1 window: File / Edit / View / Display / Shapes / Create / Tools / Booleans / Textures / Properties / Database',
+      'cam1 viewport in orange wireframe on a grey ground grid',
+      'Translation, rotation and scale channels, Element Group picking, Save / Auto',
+      'Footer: Model 4.2.1  ALIAS|WAVEFRONT, INC.',
+    ],
+    source: 'Photograph of a running Advanced Visualizer session',
+    credit: 'User photograph of Alias|Wavefront Advanced Visualizer Model 4.2.1',
+    license: 'Included as the visual reference the simulator modeler was restored from.',
+    notes:
+      'The photograph shows The Director and Model as two windows. The simulator launches them separately; Model is not drawn inside The Director.',
+  },
+  {
+    id: 'ivcalc',
+    file: 'ivcalc.png',
+    title: 'IVcalc — Inventor 3D calculator',
+    shows: [
+      'Orange 3D keypad on a black Inventor viewer',
+      'Display, AC CE % / and the number pad',
+      'Examiner controls: Rotx, Roty, Zoom 45.0, Dolly',
+      'Right-hand viewer icons for pick, view, home and perspective',
+    ],
+    source: 'Screenshot of the IRIX Inventor IVcalc demo',
+    credit: 'User screenshot of IVcalc',
+    license: 'Included as the visual reference the IVcalc window was restored from.',
+    notes: 'Left drag rotates, middle drag zooms, and the keys calculate.',
+  },
+  {
     id: 'desktop_netscape',
     file: 'irix-65-desktop-netscape-audiopanel.png',
     title: 'IRIX 6.5 desktop with Audio Panel and Netscape (1024x768)',

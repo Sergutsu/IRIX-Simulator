@@ -80,12 +80,14 @@ export const WintermApp: React.FC<WintermAppProps> = ({
           '  ep | electropaint  Launch ElectroPaint (the dancing polygons screen saver)',
           '  screen_blanker  Open the Screen Saver control panel (screen saver modules)',
           '  screens         List the installed screen saver modules',
-          '  explorer        Launch WAVEFRONT EXPLORER 2.0 (the Maya predecessor)',
+          '  director        Launch The Director (Alias|Wavefront application launcher)',
+          '  explorer        Launch Advanced Visualizer Model 4.2.1',
           '  screenshots     Open the real IRIX screenshot reference gallery',
           '  fcheck [file]   View images / rendered frame sequences (SGI RGB viewer)',
           '  fsn             Launch 3D File System Navigator (Jurassic Park UNIX visualizer)',
           '  gr_osview       Launch Graphical OS System Performance Monitor',
           '  showcase        Launch SGI 3D OpenGL & Buttonfly Showcase',
+          '  ivcalc          Launch IVcalc, the Inventor 3D calculator',
           '  sysmgr          Launch IRIX System Manager & Hardware Selector',
           '  swmgr           Launch IRIX Software Manager 4.1',
           '  insight         Open SGI InSight Online Books (IRIX 6.5 Specifications)',
@@ -305,6 +307,11 @@ export const WintermApp: React.FC<WintermAppProps> = ({
         output = 'Launching /usr/sbin/jot...';
         break;
 
+      case 'ivcalc':
+        onLaunchApp('ivcalc');
+        output = 'Launching /usr/demos/Inventor/ivcalc — left drag rotates, middle drag zooms, keys calculate.';
+        break;
+
       case 'ep':
       case 'electropaint':
         onLaunchApp('electropaint');
@@ -332,17 +339,30 @@ export const WintermApp: React.FC<WintermAppProps> = ({
         output = `Selecting the ${cmd} screen saver module in the Screen Saver panel...`;
         break;
 
+      case 'director':
+        onLaunchApp('director');
+        output = 'Launching /usr/local/wave/bin/director — Alias|Wavefront application launcher.';
+        break;
+
       case 'explorer':
       case 'wavefront':
       case 'tav':
-      case 'director':
+      case 'model':
         onLaunchApp('explorer');
-        output = [
-          'Launching /usr/local/wave/bin/director -- WAVEFRONT EXPLORER 2.0',
-          'Alias|Wavefront, a Silicon Graphics company.  Modules: Model, Shade,',
-          'Animate, Render.  The next generation system built on this code base',
-          'and on PowerAnimator will be announced separately (it becomes Maya).',
-        ].join('\n');
+        output = 'Launching Advanced Visualizer Model 4.2.1 (/usr/local/wave/Modeler).';
+        break;
+
+      case 'paint':
+      case 'property':
+      case 'dynamation':
+      case 'kinemation':
+      case 'preview':
+      case 'composer':
+        onLaunchApp('aw_module', {
+          module: cmd,
+          title: `${cmd[0].toUpperCase()}${cmd.slice(1)} — Alias|Wavefront`,
+        });
+        output = `Launching /usr/local/wave/${cmd[0].toUpperCase()}${cmd.slice(1)}.`;
         break;
 
       case 'screens':
