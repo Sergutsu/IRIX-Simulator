@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { AppId, SgiColorScheme } from '../state/osStore';
+import { AppId, AppLaunchPayload, LaunchApp, SgiColorScheme } from '../state/osStore';
 import { IRIX_ICON_LIBRARY, IrixIconDefinition, IrixVectorIcon } from '../icons/irixIconSet';
 import { SgiThumbwheel } from '../components/SgiThumbwheel';
 import { irixAudio } from '../sound/irixAudio';
 
 interface IconCatalogAppProps {
   colorScheme: SgiColorScheme;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
   onUpdateTitle?: (title: string) => void;
 }
 
@@ -18,7 +18,7 @@ type CatalogTab =
   | 'WebTools'
   | 'All .FTI';
 
-const ICON_TO_APP: Record<string, { appId: AppId; payload?: Record<string, unknown> }> = {
+const ICON_TO_APP: Record<string, { appId: AppId; payload?: AppLaunchPayload }> = {
   winterm: { appId: 'winterm' },
   gr_osview: { appId: 'gr_osview' },
   fsn: { appId: 'fsn' },

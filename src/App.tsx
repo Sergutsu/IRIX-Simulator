@@ -1,21 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import {
-  AppId,
+  AppLaunchPayload,
   ColorSchemeId,
   DeskId,
-  INITIAL_VFS_NODES,
-  INITIAL_WINDOWS,
+  LaunchApp,
+  OpenNode,
   SGI_COLOR_SCHEMES,
-  VfsNode,
   WindowInstance,
   WORKSTATION_PROFILES,
   WorkstationProfileId,
 } from './state/osStore';
 import {
   ScreenMetrics,
-  clampWindow,
   fitScreen,
-  placeWindow,
   screenMetrics,
   screenScale,
   setScreenMetrics,
@@ -26,302 +23,61 @@ import { DesksOverview } from './components/DesksOverview';
 import { WindowFrame } from './components/WindowFrame';
 import { MinimizedTile } from './components/MinimizedTile';
 import { PromAndLoginModal } from './components/PromAndLoginModal';
-import { IconCatalogApp } from './apps/IconCatalogApp';
-import { GrOsviewApp } from './apps/GrOsviewApp';
-import { WintermApp } from './apps/WintermApp';
-import { IconSmithApp } from './apps/IconSmithApp';
-import { FsnApp } from './apps/FsnApp';
-import { FileManagerApp } from './apps/FileManagerApp';
-import { GlShowcaseApp } from './apps/GlShowcaseApp';
-import { SystemManagerApp } from './apps/SystemManagerApp';
-import { SoftwareManagerApp } from './apps/SoftwareManagerApp';
-import { InsightApp } from './apps/InsightApp';
-import { NetscapeApp } from './apps/NetscapeApp';
-import { JotApp } from './apps/JotApp';
-import { ScreenSaverApp, ScreenSaverConfig } from './apps/ScreenSaverApp';
-import { ElectroPaintApp } from './apps/ElectroPaintApp';
-import { WavefrontExplorerApp } from './apps/WavefrontExplorerApp';
-import { IVcalcApp } from './apps/IVcalcApp';
-import { DirectorApp } from './apps/DirectorApp';
-import { AwModuleApp } from './apps/AwModuleApp';
-import { isAwModuleId } from './apps/explorer/awProducts';
-import { ReferenceGalleryApp } from './apps/ReferenceGalleryApp';
-import { FcheckApp } from './apps/FcheckApp';
 import { ScreenBlanker } from './components/ScreenBlanker';
+import { DesktopIcons } from './components/DesktopIcons';
+import { DesktopIconProperties } from './components/DesktopIconProperties';
+import {
+  APP_REGISTRY,
+  AppRuntime,
+  CONTEXT_MENU,
+  DESKTOP_ICONS,
+  FocusMode,
+  QUICK_LAUNCH,
+} from './apps/registry';
+import type { DesktopIcon } from './apps/registry';
+import type { ScreenSaverConfig } from './apps/ScreenSaverApp';
+import {
+  initialOsState,
+  loadOsState,
+  osReducer,
+  saveOsState,
+} from './state/osState';
 import { irixAudio } from './sound/irixAudio';
 
-interface DesktopShortcut {
-  id: string;
-  label: string;
-  iconId: string;
-  useMagicCarpet: boolean;
-  appId: AppId;
-  payload?: Record<string, unknown>;
-}
-
-const DESKTOP_SHORTCUTS: DesktopShortcut[] = [
-  {
-    id: 'camera',
-    label: 'camera',
-    iconId: 'camera',
-    useMagicCarpet: false,
-    appId: 'gl_showcase',
-    payload: { mode: 'indycam' },
-  },
-  {
-    id: 'o2cam_mic',
-    label: 'O2cam mic',
-    iconId: 'o2cam_mic',
-    useMagicCarpet: false,
-    appId: 'gl_showcase',
-    payload: { mode: 'indycam' },
-  },
-  {
-    id: 'microphone',
-    label: 'microphone',
-    iconId: 'microphone',
-    useMagicCarpet: false,
-    appId: 'system_manager',
-    payload: { tab: 'audio' },
-  },
-  {
-    id: 'guest_dir',
-    label: 'guest',
-    iconId: 'folder',
-    useMagicCarpet: false,
-    appId: 'file_manager',
-    payload: { path: '/usr/people/guest' },
-  },
-  {
-    id: 'electropaint_desk',
-    label: 'ep',
-    iconId: 'electropaint',
-    useMagicCarpet: true,
-    appId: 'electropaint',
-  },
-  {
-    id: 'explorer_desk',
-    label: 'director',
-    iconId: 'explorer',
-    useMagicCarpet: true,
-    appId: 'director',
-  },
-  {
-    id: 'fcheck_desk',
-    label: 'fcheck',
-    iconId: 'reference',
-    useMagicCarpet: true,
-    appId: 'fcheck',
-  },
-  {
-    id: 'screenshots_desk',
-    label: 'screenshots',
-    iconId: 'reference',
-    useMagicCarpet: false,
-    appId: 'reference',
-  },
-  {
-    id: 'iconsmith_desk',
-    label: 'IconSmith',
-    iconId: 'iconsmith',
-    useMagicCarpet: true,
-    appId: 'iconsmith',
-    payload: { iconId: 'buttonfly' },
-  },
-  {
-    id: 'fsn_desk',
-    label: 'fsn 3D',
-    iconId: 'fsn',
-    useMagicCarpet: true,
-    appId: 'fsn',
-  },
-  {
-    id: 'showcase_desk',
-    label: 'showcase',
-    iconId: 'showcase',
-    useMagicCarpet: true,
-    appId: 'gl_showcase',
-    payload: { mode: 'cube' },
-  },
-  {
-    id: 'insight_desk',
-    label: 'IRIX 6.5 Specs',
-    iconId: 'insight',
-    useMagicCarpet: true,
-    appId: 'insight',
-    payload: { chapter: 'specs' },
-  },
-  {
-    id: 'dumpster',
-    label: 'dumpster',
-    iconId: 'dumpster',
-    useMagicCarpet: false,
-    appId: 'file_manager',
-    payload: { path: '/dumpster' },
-  },
-  {
-    id: 'cdrom',
-    label: 'CDROM',
-    iconId: 'cdrom',
-    useMagicCarpet: false,
-    appId: 'software_manager',
-  },
-];
-
-const APP_DEFAULTS: Record<
-  AppId,
-  { title: string; iconId: string; width: number; height: number }
-> = {
-  winterm: {
-    title: 'Winterm — root@silicon (/usr/people/guest)',
-    iconId: 'winterm',
-    width: 615,
-    height: 330,
-  },
-  gr_osview: {
-    title: 'gr_osview',
-    iconId: 'gr_osview',
-    width: 385,
-    height: 330,
-  },
-  icon_catalog: {
-    title: 'Icon Catalog: Applications (Page 1 of 6)',
-    iconId: 'showcase',
-    width: 535,
-    height: 365,
-  },
-  iconsmith: {
-    title: 'IconSmith — /usr/lib/filetype/iconlib/buttonfly.fti',
-    iconId: 'iconsmith',
-    width: 775,
-    height: 525,
-  },
-  file_manager: {
-    title: '/usr/people/guest',
-    iconId: 'folder',
-    width: 590,
-    height: 455,
-  },
-  fsn: {
-    title: 'fsn — a 3D File System Navigator (/usr/people/guest)',
-    iconId: 'fsn',
-    width: 760,
-    height: 515,
-  },
-  gl_showcase: {
-    title: 'SGI OpenGL & Buttonfly 3D Showcase (TrueColor 24-bit)',
-    iconId: 'showcase',
-    width: 585,
-    height: 425,
-  },
-  ivcalc: {
-    title: 'IVcalc',
-    iconId: 'showcase',
-    width: 720,
-    height: 520,
-  },
-  system_manager: {
-    title: 'System Manager — silicon.sgi.com',
-    iconId: 'sysmgr',
-    width: 635,
-    height: 465,
-  },
-  software_manager: {
-    title: 'Software Manager 4.1 — Manage Installed Software',
-    iconId: 'swmgr',
-    width: 620,
-    height: 485,
-  },
-  screensaver: {
-    title: 'Screen Saver — Desktop Customize Control Panel',
-    iconId: 'screensaver',
-    width: 700,
-    height: 590,
-  },
-  electropaint: {
-    title: 'ElectroPaint — ep -c (Interactive Dancing Polygons)',
-    iconId: 'electropaint',
-    width: 800,
-    height: 500,
-  },
-  explorer: {
-    title: 'Advanced Visualizer Model 4.2.1',
-    iconId: 'explorer',
-    width: 1080,
-    height: 740,
-  },
-  director: {
-    title: 'The Director — Alias|Wavefront',
-    iconId: 'explorer',
-    width: 640,
-    height: 460,
-  },
-  aw_module: {
-    title: 'Alias|Wavefront',
-    iconId: 'explorer',
-    width: 760,
-    height: 520,
-  },
-  reference: {
-    title: 'Real IRIX Screenshot Reference Gallery',
-    iconId: 'reference',
-    width: 860,
-    height: 620,
-  },
-  fcheck: {
-    title: 'fcheck — SGI image & movie sequence viewer',
-    iconId: 'reference',
-    width: 800,
-    height: 560,
-  },
-  insight: {
-    title: 'SGI InSight — IRIX 6.5 Specifications, Icon Set & Web Framework',
-    iconId: 'insight',
-    width: 745,
-    height: 525,
-  },
-  netscape: {
-    title: 'Netscape: SiliconSurf [SGI IRIX 6.5 Edition]',
-    iconId: 'netscape',
-    width: 685,
-    height: 480,
-  },
-  jot: {
-    title: 'jot — /usr/people/guest/readme.sgi',
-    iconId: 'jot',
-    width: 560,
-    height: 410,
-  },
-};
-
 export const App: React.FC = () => {
-  const [workstationId, setWorkstationId] = useState<WorkstationProfileId>('octane2');
-  const [colorSchemeId, setColorSchemeId] = useState<ColorSchemeId>('indigo_magic');
-  const [activeDesk, setActiveDesk] = useState<DeskId>('Main');
-  const [focusMode, setFocusMode] = useState<'click' | 'followMouse'>('click');
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-  const [currentUser, setCurrentUser] = useState<string>('guest');
-  const [modalMode, setModalMode] = useState<'prom' | 'clogin' | null>(null);
+  const [state, dispatch] = useReducer(osReducer, initialOsState, loadOsState);
+  const {
+    workstationId,
+    colorSchemeId,
+    activeDesk,
+    focusMode,
+    soundEnabled,
+    currentUser,
+    modalMode,
+    windows,
+    saverConfig,
+    blanked,
+    blankLocked,
+    activeWinId,
+    vfs,
+    selectedDesktopIcon,
+    launchingDesktopId,
+    contextMenu,
+    showQuickLaunchBar,
+    iconProperties,
+  } = state;
 
-  const [windows, setWindows] = useState<WindowInstance[]>(INITIAL_WINDOWS);
-  const [saverConfig, setSaverConfig] = useState<ScreenSaverConfig>({
-    enabled: true,
-    moduleId: 'electropaint',
-    idleSeconds: 300,
-    lockScreen: false,
-    cycleModules: false,
-  });
-  const [blanked, setBlanked] = useState<boolean>(false);
-  const [blankLocked, setBlankLocked] = useState<boolean>(false);
-  const [activeWinId, setActiveWinId] = useState<string>('win_winterm');
-  const [vfs, setVfs] = useState<VfsNode[]>(INITIAL_VFS_NODES);
-  const [selectedDesktopIcon, setSelectedDesktopIcon] = useState<string | null>(null);
-  const [launchingDesktopId, setLaunchingDesktopId] = useState<string | null>(null);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const hiddenIconCount = Object.values(state.desktopIcons).filter((i) => i.hidden).length;
+
   const [screen, setScreen] = useState<ScreenMetrics>(screenMetrics);
-  // The old always-on quick-launch bar sat across the bottom of the desktop.
-  // It is off by default now; Toolchest -> Desktop can bring it back.
-  const [showQuickLaunchBar, setShowQuickLaunchBar] = useState(false);
+
+  // The desktop persists: windows, desks, colours, hardware and the filesystem
+  // all come back after a reload. Debounced, so dragging a window does not
+  // serialise the filesystem on every mousemove.
+  useEffect(() => {
+    const save = window.setTimeout(() => saveOsState(state), 400);
+    return () => window.clearTimeout(save);
+  }, [state]);
 
   // The desktop is laid out in the workstation's own pixels and scaled as a
   // whole to the browser window, so every window fits the display it is on.
@@ -338,12 +94,7 @@ export const App: React.FC = () => {
 
   // Keep window frames inside the framebuffer when the display changes size.
   useEffect(() => {
-    setWindows((prev) =>
-      prev.map((w) => {
-        const p = clampWindow(w.x, w.y, w.width, w.height);
-        return p.x === w.x && p.y === w.y ? w : { ...w, ...p };
-      })
-    );
+    dispatch({ type: 'clampWindows' });
   }, [screen.width, screen.height]);
 
   const workstation = WORKSTATION_PROFILES[workstationId];
@@ -352,254 +103,122 @@ export const App: React.FC = () => {
   // Desktop icon column: one row per shortcut, sized to the framebuffer.
   const iconCell = Math.max(
     48,
-    Math.min(84, (screen.height - 30) / Math.max(1, DESKTOP_SHORTCUTS.length))
+    Math.min(84, (screen.height - 30) / Math.max(1, DESKTOP_ICONS.length))
   );
   const iconSize = Math.round(iconCell * 0.66);
 
   const bringToFront = (id: string) => {
-    setActiveWinId(id);
-    setWindows((prev) => {
-      const maxZ = prev.reduce((m, w) => Math.max(m, w.zIndex), 10);
-      return prev.map((w) => (w.id === id ? { ...w, zIndex: maxZ + 1 } : w));
-    });
+    dispatch({ type: 'focusWindow', id });
   };
 
-  const handleLaunchApp = (appId: AppId, payload?: Record<string, unknown>) => {
+  // Sound is a side effect, so it happens here rather than in the reducer.
+  const launchApp: LaunchApp = (appId, payload) => {
     irixAudio.playAppLaunch();
-    // `screens bounce` / `hops` / `ep` from xwsh preselect a saver module
-    if (appId === 'screensaver' && typeof payload?.module === 'string') {
-      const requested = payload.module as string;
-      const moduleId =
-        requested === 'bounce'
-          ? 'bounce'
-          : requested === 'hops' || requested === 'hopalong' || requested === 'spaceplants'
-          ? 'hopalong'
-          : requested === 'blank'
-          ? 'blank'
-          : 'electropaint';
-      setSaverConfig((prev) => ({ ...prev, moduleId }));
-    }
-    setWindows((prev) => {
-      const maxZ = prev.reduce((m, w) => Math.max(m, w.zIndex), 10);
-      // Check if an instance of this app already exists on the active desk (or global)
-      const existing = prev.find((w) => {
-        if (w.appId !== appId) return false;
-        if (w.deskId !== activeDesk && w.deskId !== 'Global') return false;
-        if (appId === 'aw_module') return String(w.payload?.module ?? '') === String(payload?.module ?? '');
-        return true;
-      });
-
-      if (existing) {
-        setActiveWinId(existing.id);
-        return prev.map((w) =>
-          w.id === existing.id
-            ? {
-                ...w,
-                minimized: false,
-                shaded: false,
-                zIndex: maxZ + 1,
-                payload: payload ? { ...w.payload, ...payload } : w.payload,
-              }
-            : w
-        );
-      }
-
-      const def = APP_DEFAULTS[appId];
-      const offset = (prev.length % 6) * 24;
-      const at = placeWindow(def.width, def.height, offset);
-      const newWin: WindowInstance = {
-        id: `win_${appId}_${Date.now()}`,
-        appId,
-        title:
-          appId === 'aw_module' && typeof payload?.title === 'string' ? payload.title : def.title,
-        iconId: def.iconId,
-        deskId: activeDesk,
-        x: at.x,
-        y: at.y,
-        width: def.width,
-        height: def.height,
-        zIndex: maxZ + 1,
-        minimized: false,
-        maximized: false,
-        shaded: false,
-        minTileX: 145 + ((prev.length * 78) % 460),
-        minTileY: 10,
-        payload,
-      };
-      setActiveWinId(newWin.id);
-      return [...prev, newWin];
-    });
+    dispatch({ type: 'launch', appId, payload });
   };
 
   const handleCloseWindow = (id: string) => {
     irixAudio.playMenuClick();
-    setWindows((prev) => prev.filter((w) => w.id !== id));
+    dispatch({ type: 'closeWindow', id });
   };
-
-  const handleMinimizeWindow = (id: string) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, minimized: true } : w))
-    );
-  };
-
-  const handleRestoreWindow = (id: string) => {
-    setActiveWinId(id);
-    setWindows((prev) => {
-      const maxZ = prev.reduce((m, w) => Math.max(m, w.zIndex), 10);
-      return prev.map((w) =>
-        w.id === id ? { ...w, minimized: false, zIndex: maxZ + 1 } : w
-      );
-    });
-  };
-
-  const handleMaximizeWindow = (id: string) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, maximized: !w.maximized } : w))
-    );
-  };
-
-  const handleToggleShade = (id: string) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, shaded: !w.shaded } : w))
-    );
-  };
-
+  const handleMinimizeWindow = (id: string) => dispatch({ type: 'minimizeWindow', id });
+  const handleRestoreWindow = (id: string) => dispatch({ type: 'restoreWindow', id });
+  const handleMaximizeWindow = (id: string) => dispatch({ type: 'toggleMaximize', id });
+  const handleToggleShade = (id: string) => dispatch({ type: 'toggleShade', id });
   const handleMoveResizeWindow = (
     id: string,
     patch: Partial<Pick<WindowInstance, 'x' | 'y' | 'width' | 'height'>>
-  ) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, ...patch } : w))
-    );
-  };
-
-  const handleMoveTile = (id: string, x: number, y: number) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, minTileX: x, minTileY: y } : w))
-    );
-  };
-
-  const handleChangeWindowDesk = (id: string, deskId: DeskId) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, deskId } : w))
-    );
-  };
-
-  const handleUpdateWindowTitle = (id: string, title: string) => {
-    setWindows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, title } : w))
-    );
-  };
-
-  const handleSaveFile = (path: string, content: string) => {
-    setVfs((prev) =>
-      prev.map((n) =>
-        n.path === path ? { ...n, content, size: content.length, mtime: 'Oct 02 Now' } : n
-      )
-    );
-  };
-
-  /**
-   * A render written out by the Wavefront Explorer lands in the XFS filesystem
-   * as an image node, so the File Manager Content Viewer can show it — the
-   * simulated stand-in for the SGI RGB files the real program wrote.
-   */
-  const handleSaveRender = (path: string, dataUrl: string, meta: string) => {
-    setVfs((prev) => {
-      const node: VfsNode = {
-        path,
-        name: path.split('/').pop() || 'render.rgb',
-        type: 'file',
-        iconId: 'reference',
-        size: Math.round(dataUrl.length * 0.75),
-        mtime: 'Oct 03 Now',
-        permissions: '-rw-r--r--',
-        owner: currentUser,
-        tagHex: '0x00020001',
-        appId: 'reference',
-        imageUrl: dataUrl,
-        content: meta,
-      };
-      const exists = prev.some((n) => n.path === path);
-      return exists ? prev.map((n) => (n.path === path ? node : n)) : [...prev, node];
-    });
-  };
-
-  const handleSaveFtiToVfs = (filename: string, ftiCode: string) => {
-    const targetPath = `/usr/lib/filetype/iconlib/${filename}`;
-    setVfs((prev) => {
-      const exists = prev.some((n) => n.path === targetPath);
-      if (exists) {
-        return prev.map((n) =>
-          n.path === targetPath
-            ? { ...n, content: ftiCode, size: ftiCode.length, mtime: 'Oct 02 Now' }
-            : n
-        );
-      }
-      return [
-        ...prev,
-        {
-          path: targetPath,
-          name: filename,
-          type: 'file',
-          iconId: 'iconsmith',
-          size: ftiCode.length,
-          mtime: 'Oct 02 Now',
-          permissions: '-rw-r--r--',
-          owner: currentUser,
-          tagHex: '0x00001088',
-          appId: 'iconsmith',
-          content: ftiCode,
-        },
-      ];
-    });
-  };
-
-  const handleCreateFile = (dir: string, name: string, content: string) => {
-    const cleanDir = dir === '/' ? '' : dir.replace(/\/$/, '');
-    const path = `${cleanDir}/${name}`;
-    setVfs((prev) => [
-      ...prev,
-      {
-        path,
-        name,
-        type: 'file',
-        iconId: 'document',
-        size: content.length,
-        mtime: 'Oct 02 Now',
-        permissions: '-rw-r--r--',
-        owner: currentUser,
-        tagHex: '0x00000100',
-        appId: 'jot',
-        content,
-      },
-    ]);
-  };
-
-  const handleMoveToDumpster = (path: string) => {
-    setVfs((prev) =>
-      prev.map((n) => {
-        if (n.path !== path) return n;
-        return {
-          ...n,
-          path: `/dumpster/${n.name}`,
-        };
-      })
-    );
-  };
-
+  ) => dispatch({ type: 'moveResizeWindow', id, patch });
+  const handleMoveTile = (id: string, x: number, y: number) =>
+    dispatch({ type: 'moveTile', id, x, y });
+  const handleChangeWindowDesk = (id: string, desk: DeskId) =>
+    dispatch({ type: 'changeWindowDesk', id, desk });
+  const handleUpdateWindowTitle = (id: string, title: string) =>
+    dispatch({ type: 'setWindowTitle', id, title });
+  const handleSaveFile = (path: string, content: string) =>
+    dispatch({ type: 'saveFile', path, content });
+  const handleSaveRender = (path: string, dataUrl: string, meta: string) =>
+    dispatch({ type: 'saveRender', path, dataUrl, meta });
+  const handleSaveFtiToVfs = (filename: string, ftiCode: string) =>
+    dispatch({ type: 'saveFti', filename, ftiCode });
+  const handleCreateFile = (dir: string, name: string, content: string) =>
+    dispatch({ type: 'createFile', dir, name, content });
+  const handleMoveToDumpster = (path: string) =>
+    dispatch({ type: 'moveToDumpster', path });
   const handleEmptyDumpster = () => {
     irixAudio.playDumpsterCrunch();
-    setVfs((prev) => prev.filter((n) => !n.path.startsWith('/dumpster/')));
+    dispatch({ type: 'emptyDumpster' });
+  };
+  const handleToggleSound = () => {
+    const next = !soundEnabled;
+    irixAudio.enabled = next;
+    dispatch({ type: 'toggleSound' });
+  };
+  const handleBlankNow = (moduleId?: string) => dispatch({ type: 'blankNow', moduleId });
+  const handleSelectColorScheme = (id: ColorSchemeId) => dispatch({ type: 'setColorScheme', id });
+  const handleSwitchDesk = (desk: DeskId) => dispatch({ type: 'setDesk', desk });
+  const handleSelectDesktopIcon = (id: string | null) =>
+    dispatch({ type: 'selectDesktopIcon', id });
+  const handleSetLaunchingIcon = (id: string | null) =>
+    dispatch({ type: 'setLaunchingIcon', id });
+  const handleSetContextMenu = (at: { x: number; y: number } | null) =>
+    dispatch({ type: 'setContextMenu', at });
+  const handleToggleQuickLaunchBar = () => dispatch({ type: 'toggleQuickLaunchBar' });
+  const handleMoveIcon = (id: string, x: number, y: number) =>
+    dispatch({ type: 'moveDesktopIcon', id, x, y });
+  const handleIconProperties = (icon: DesktopIcon, at: { x: number; y: number }) =>
+    dispatch({ type: 'iconProperties', icon, at });
+  const handleCloseIconProperties = () => dispatch({ type: 'iconProperties', icon: null });
+  const handleRestoreIcons = () => {
+    irixAudio.playMenuClick();
+    dispatch({ type: 'restoreDesktopIcons' });
+  };
+  const handleSelectWorkstation = (id: WorkstationProfileId) =>
+    dispatch({ type: 'setWorkstation', id });
+  const handleChangeFocusMode = (mode: FocusMode) => dispatch({ type: 'setFocusMode', mode });
+  const handleChangeSaverConfig = (patch: Partial<ScreenSaverConfig>) =>
+    dispatch({ type: 'setSaverConfig', patch });
+  const handleSetModal = (mode: 'prom' | 'clogin' | null) => dispatch({ type: 'setModal', mode });
+  const handleSetUser = (user: string) => dispatch({ type: 'setUser', user });
+
+  /** Launch whatever a filesystem node points at: the one dynamic entry point. */
+  const openNode: OpenNode = (node) => {
+    if (node.appId) launchApp(node.appId, { ...node.payload, path: node.path } as AppLaunchPayload);
   };
 
-  const handleToggleSound = () => {
-    setSoundEnabled((prev) => {
-      const next = !prev;
-      irixAudio.enabled = next;
-      return next;
-    });
-  };
+  /** Everything the registry hands to an application. */
+  const runtimeFor = (win: WindowInstance): AppRuntime => ({
+    win,
+    workstation,
+    colorScheme,
+    windows,
+    vfs,
+    currentUser,
+    focusMode,
+    soundEnabled,
+    saverConfig,
+    onLaunchApp: launchApp,
+    onOpenNode: openNode,
+    onCloseWindow: handleCloseWindow,
+    onUpdateTitle: (title) => handleUpdateWindowTitle(win.id, title),
+    onSaveFile: handleSaveFile,
+    onSaveRender: handleSaveRender,
+    onSaveFtiToVfs: handleSaveFtiToVfs,
+    onMoveToDumpster: handleMoveToDumpster,
+    onCreateFile: handleCreateFile,
+    onSelectWorkstation: handleSelectWorkstation,
+    onSelectColorScheme: handleSelectColorScheme,
+    onChangeFocusMode: handleChangeFocusMode,
+    onToggleSound: handleToggleSound,
+    onChangeSaverConfig: handleChangeSaverConfig,
+    onBlankNow: handleBlankNow,
+    toolchestEdits: state.toolchestEdits,
+    toolchestCustom: state.toolchestCustom,
+    onEditToolchest: (key, edit) => dispatch({ type: 'editToolchest', key, edit }),
+    onAddToolchestEntry: (entry) => dispatch({ type: 'addToolchestEntry', entry }),
+    onRemoveToolchestEntry: (id) => dispatch({ type: 'removeToolchestEntry', id }),
+    onResetToolchest: () => dispatch({ type: 'resetToolchest' }),
+  });
 
   const visibleWindows = windows.filter(
     (w) => w.deskId === activeDesk || w.deskId === 'Global'
@@ -631,8 +250,8 @@ export const App: React.FC = () => {
       const idle = (Date.now() - lastActivityRef.current) / 1000;
       if (idle >= saverConfig.idleSeconds) {
         blankedRef.current = true;
-        setBlankLocked(saverConfig.lockScreen);
-        setBlanked(true);
+        dispatch({ type: 'setSaverConfig', patch: { lockScreen: saverConfig.lockScreen } });
+        handleBlankNow();
       }
     }, 1000);
     return () => {
@@ -643,9 +262,8 @@ export const App: React.FC = () => {
 
   const wakeFromBlanker = () => {
     blankedRef.current = false;
-    setBlanked(false);
-    setBlankLocked(false);
     lastActivityRef.current = Date.now();
+    dispatch({ type: 'wake' });
   };
 
   return (
@@ -654,10 +272,10 @@ export const App: React.FC = () => {
         e.preventDefault();
         // the desktop is scaled as a whole: remember the click in framebuffer pixels
         const s = screenScale();
-        setContextMenu({ x: e.clientX / s, y: e.clientY / s });
+        handleSetContextMenu({ x: e.clientX / s, y: e.clientY / s });
       }}
       onClick={() => {
-        if (contextMenu) setContextMenu(null);
+        if (contextMenu) handleSetContextMenu(null);
       }}
       style={{
         width: '100vw',
@@ -692,17 +310,19 @@ export const App: React.FC = () => {
       <Toolchest
         activeDesk={activeDesk}
         quickLaunchBar={showQuickLaunchBar}
-        onToggleQuickLaunchBar={() => setShowQuickLaunchBar((v) => !v)}
+        onToggleQuickLaunchBar={handleToggleQuickLaunchBar}
         colorScheme={colorScheme}
         selectedDesktopIcon={selectedDesktopIcon}
         soundEnabled={soundEnabled}
-        onLaunchApp={handleLaunchApp}
-        onSelectColorScheme={setColorSchemeId}
-        onSwitchDesk={setActiveDesk}
+        onLaunchApp={launchApp}
+        onSelectColorScheme={handleSelectColorScheme}
+        onSwitchDesk={handleSwitchDesk}
         onToggleSound={handleToggleSound}
         onEmptyDumpster={handleEmptyDumpster}
-        onOpenPromMonitor={() => setModalMode('prom')}
-        onOpenClogin={() => setModalMode('clogin')}
+        onOpenPromMonitor={() => handleSetModal('prom')}
+        onOpenClogin={() => handleSetModal('clogin')}
+        toolchestEdits={state.toolchestEdits}
+        toolchestCustom={state.toolchestCustom}
       />
 
       {/* Minimized 4Dwm Window Square Tiles on Desktop */}
@@ -720,79 +340,25 @@ export const App: React.FC = () => {
       {/* Right-Edge Column of Authentic SGI Isometric Vector Desktop Icons.
           The row height follows the framebuffer, so on a short display the
           icons shrink to stay in one column instead of wrapping behind the
-          windows. */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'absolute',
-          right: '14px',
-          top: '12px',
-          bottom: '14px',
-          display: 'grid',
-          gridAutoFlow: 'column',
-          gridTemplateRows: `repeat(auto-fill, ${iconCell}px)`,
-          gap: '2px 14px',
-          direction: 'rtl',
-          zIndex: 6,
+          windows. Icons can be dragged anywhere and carry their own
+          Properties dialog. */}
+      <DesktopIcons
+        colorScheme={colorScheme}
+        icons={DESKTOP_ICONS}
+        state={state.desktopIcons}
+        cellSize={iconCell}
+        iconSize={iconSize}
+        selectedId={selectedDesktopIcon}
+        launchingId={launchingDesktopId}
+        onSelect={handleSelectDesktopIcon}
+        onLaunch={(icon) => {
+          handleSetLaunchingIcon(icon.id);
+          window.setTimeout(() => handleSetLaunchingIcon(null), 220);
+          launchApp(icon.appId, icon.payload);
         }}
-      >
-        {DESKTOP_SHORTCUTS.map((sc) => {
-          const isSelected = selectedDesktopIcon === sc.id;
-          const isLaunching = launchingDesktopId === sc.id;
-          const vState = isLaunching
-            ? 'opened'
-            : isSelected
-            ? 'selected'
-            : 'normal';
-
-          return (
-            <div
-              key={sc.id}
-              onClick={() => {
-                irixAudio.playIconSelect();
-                setSelectedDesktopIcon(sc.id);
-              }}
-              onDoubleClick={() => {
-                setLaunchingDesktopId(sc.id);
-                setTimeout(() => setLaunchingDesktopId(null), 220);
-                handleLaunchApp(sc.appId, sc.payload);
-              }}
-              title={`Double-click to open ${sc.label}`}
-              style={{
-                direction: 'ltr',
-                width: '78px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <IrixVectorIcon
-                iconId={sc.iconId}
-                useMagicCarpet={sc.useMagicCarpet}
-                state={vState}
-                size={iconSize}
-              />
-              <span
-                style={{
-                  marginTop: '2px',
-                  fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-                  fontStyle: 'italic',
-                  fontWeight: 700,
-                  fontSize: '11.5px',
-                  color: isSelected ? '#ffe84a' : '#ffffff',
-                  textShadow: '1px 1px 2px #000, 0 0 3px rgba(0,0,0,0.85)',
-                  background: isSelected ? 'rgba(0,0,0,0.42)' : 'transparent',
-                  padding: '0 4px',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {sc.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+        onMove={handleMoveIcon}
+        onProperties={handleIconProperties}
+      />
 
       {/* Active 4Dwm Windows for Current Desk */}
       {visibleWindows
@@ -812,198 +378,7 @@ export const App: React.FC = () => {
             onMoveResize={handleMoveResizeWindow}
             onChangeDesk={handleChangeWindowDesk}
           >
-            {win.appId === 'icon_catalog' && (
-              <IconCatalogApp
-                colorScheme={colorScheme}
-                onLaunchApp={handleLaunchApp}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-              />
-            )}
-            {win.appId === 'gr_osview' && (
-              <GrOsviewApp
-                workstation={workstation}
-                colorScheme={colorScheme}
-                openWindowCount={windows.filter((w) => !w.minimized).length}
-              />
-            )}
-            {win.appId === 'winterm' && (
-              <WintermApp
-                workstation={workstation}
-                vfs={vfs}
-                windows={windows}
-                initialCommand={win.payload?.runCmd as string | undefined}
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'iconsmith' && (
-              <IconSmithApp
-                colorScheme={colorScheme}
-                initialIconId={win.payload?.iconId as string | undefined}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-                onSaveFtiToVfs={handleSaveFtiToVfs}
-              />
-            )}
-            {win.appId === 'fsn' && (
-              <FsnApp
-                vfs={vfs}
-                colorScheme={colorScheme}
-                onLaunchApp={handleLaunchApp}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-              />
-            )}
-            {win.appId === 'file_manager' && (
-              <FileManagerApp
-                vfs={vfs}
-                colorScheme={colorScheme}
-                initialPath={win.payload?.path as string | undefined}
-                onLaunchApp={handleLaunchApp}
-                onMoveToDumpster={handleMoveToDumpster}
-                onCreateFile={handleCreateFile}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-              />
-            )}
-            {win.appId === 'gl_showcase' && (
-              <GlShowcaseApp
-                workstation={workstation}
-                colorScheme={colorScheme}
-                initialMode={
-                  win.payload?.mode as
-                    | 'cube'
-                    | 'buttonfly'
-                    | 'torus'
-                    | 'indycam'
-                    | undefined
-                }
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'system_manager' && (
-              <SystemManagerApp
-                workstation={workstation}
-                colorScheme={colorScheme}
-                focusMode={focusMode}
-                soundEnabled={soundEnabled}
-                windows={windows}
-                initialTab={
-                  win.payload?.tab as
-                    | 'hardware'
-                    | 'customize'
-                    | 'processes'
-                    | 'audio'
-                    | undefined
-                }
-                onSelectWorkstation={setWorkstationId}
-                onSelectColorScheme={setColorSchemeId}
-                onChangeFocusMode={setFocusMode}
-                onToggleSound={handleToggleSound}
-                onCloseWindow={handleCloseWindow}
-              />
-            )}
-            {win.appId === 'software_manager' && (
-              <SoftwareManagerApp colorScheme={colorScheme} />
-            )}
-            {win.appId === 'insight' && (
-              <InsightApp
-                colorScheme={colorScheme}
-                initialChapter={
-                  win.payload?.chapter as
-                    | 'specs'
-                    | 'framework'
-                    | 'icons'
-                    | '4dwm'
-                    | undefined
-                }
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'netscape' && (
-              <NetscapeApp
-                colorScheme={colorScheme}
-                initialPage={
-                  win.payload?.page as
-                    | 'siliconsurf'
-                    | 'irix65'
-                    | 'nekoware'
-                    | undefined
-                }
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'screensaver' && (
-              <ScreenSaverApp
-                colorScheme={colorScheme}
-                workstation={workstation}
-                config={saverConfig}
-                onChangeConfig={(patch) => setSaverConfig((prev) => ({ ...prev, ...patch }))}
-                onBlankNow={(moduleId) => {
-                  if (moduleId) setSaverConfig((prev) => ({ ...prev, moduleId }));
-                  setBlanked(true);
-                  setBlankLocked(false);
-                }}
-                onSaveFile={handleSaveFile}
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'electropaint' && (
-              <ElectroPaintApp
-                colorScheme={colorScheme}
-                workstation={workstation}
-                vfs={vfs}
-                onBlankNow={(moduleId) => {
-                  if (moduleId) setSaverConfig((prev) => ({ ...prev, moduleId }));
-                  setBlanked(true);
-                  setBlankLocked(false);
-                }}
-                onSaveFile={handleSaveFile}
-              />
-            )}
-            {win.appId === 'ivcalc' && <IVcalcApp />}
-            {win.appId === 'director' && <DirectorApp onLaunchApp={handleLaunchApp} />}
-            {win.appId === 'aw_module' && (
-              <AwModuleApp
-                module={isAwModuleId(String(win.payload?.module ?? '')) ? (win.payload?.module as 'paint') : 'property'}
-                colorScheme={colorScheme}
-                onLaunchApp={handleLaunchApp}
-                onSaveRender={handleSaveRender}
-              />
-            )}
-            {win.appId === 'explorer' && (
-              <WavefrontExplorerApp
-                colorScheme={colorScheme}
-                initialMode={
-                  win.payload?.mode as
-                    | 'model'
-                    | 'shade'
-                    | 'animate'
-                    | 'render'
-                    | undefined
-                }
-                onSaveRender={handleSaveRender}
-                onSaveFile={handleSaveFile}
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'reference' && (
-              <ReferenceGalleryApp colorScheme={colorScheme} onLaunchApp={handleLaunchApp} />
-            )}
-            {win.appId === 'fcheck' && (
-              <FcheckApp
-                colorScheme={colorScheme}
-                vfs={vfs}
-                initialPath={win.payload?.path as string | undefined}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-                onLaunchApp={handleLaunchApp}
-              />
-            )}
-            {win.appId === 'jot' && (
-              <JotApp
-                vfs={vfs}
-                colorScheme={colorScheme}
-                initialPath={win.payload?.path as string | undefined}
-                onSaveFile={handleSaveFile}
-                onUpdateTitle={(t) => handleUpdateWindowTitle(win.id, t)}
-              />
-            )}
+            {APP_REGISTRY[win.appId].render(runtimeFor(win))}
           </WindowFrame>
         ))}
 
@@ -1012,7 +387,7 @@ export const App: React.FC = () => {
         activeDesk={activeDesk}
         windows={windows}
         colorScheme={colorScheme}
-        onSelectDesk={setActiveDesk}
+        onSelectDesk={handleSwitchDesk}
         onFocusWindow={bringToFront}
       />
 
@@ -1038,62 +413,17 @@ export const App: React.FC = () => {
         <span style={{ fontStyle: 'italic', fontWeight: 700 }}>
           {workstation.name} ({workstation.ipArch}) • {workstation.osRelease}
         </span>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('iconsmith')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          🎨 IconSmith (.FTI)
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('fsn')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          🦖 fsn 3D
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('electropaint')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          🔺 ElectroPaint
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('director')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          🎬 The Director
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('reference')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          📷 IRIX Screenshots
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('fcheck')}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          🎞 fcheck
-        </button>
-        <button
-          type="button"
-          className="sgi-btn"
-          onClick={() => handleLaunchApp('insight', { chapter: 'specs' })}
-          style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
-        >
-          📘 IRIX 6.5 Specs
-        </button>
+        {QUICK_LAUNCH.map((q) => (
+          <button
+            key={q.label}
+            type="button"
+            className="sgi-btn"
+            onClick={() => launchApp(q.appId, q.payload)}
+            style={{ padding: '1px 6px', fontSize: '10.5px', fontWeight: 700 }}
+          >
+            {q.label}
+          </button>
+        ))}
       </div>
       )}
 
@@ -1128,120 +458,38 @@ export const App: React.FC = () => {
               {workstation.name} · {workstation.ipArch} · {workstation.osRelease}
             </div>
           </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('winterm');
-            }}
-          >
-            <span>Open Unix Shell (xwsh)</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('icon_catalog');
-            }}
-          >
-            <span>Icon Catalog</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('iconsmith');
-            }}
-          >
-            <span>IconSmith (.FTI Vector Studio)</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('fsn');
-            }}
-          >
-            <span>3D File System Navigator (fsn)</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('electropaint');
-            }}
-          >
-            <span>ElectroPaint (dancing polygons)</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('ivcalc');
-            }}
-          >
-            <span>IVcalc (3D calculator)</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('screensaver');
-            }}
-          >
-            <span>Screen Saver Control Panel</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('director');
-            }}
-          >
-            <span>The Director</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('explorer');
-            }}
-          >
-            <span>Advanced Visualizer Model 4.2.1</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('reference');
-            }}
-          >
-            <span>Real IRIX Screenshots</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('gl_showcase', { mode: 'cube' });
-            }}
-          >
-            <span>SGI 3D OpenGL Showcase</span>
-          </div>
-          <div
-            className="sgi-menu-item"
-            onClick={() => {
-              setContextMenu(null);
-              handleLaunchApp('insight', { chapter: 'specs' });
-            }}
-          >
-            <span>IRIX 6.5 Specifications (InSight)</span>
-          </div>
+          {CONTEXT_MENU.map((c) => (
+            <div
+              key={c.label}
+              className="sgi-menu-item"
+              onClick={() => {
+                handleSetContextMenu(null);
+                launchApp(c.appId, c.payload);
+              }}
+            >
+              <span>{c.label}</span>
+            </div>
+          ))}
+          {hiddenIconCount > 0 && (
+            <>
+              <div style={{ borderTop: '1px solid #666', borderBottom: '1px solid #fff', margin: '2px 0' }} />
+              <div
+                className="sgi-menu-item"
+                onClick={() => {
+                  handleSetContextMenu(null);
+                  handleRestoreIcons();
+                }}
+              >
+                <span>Restore Desktop Icons ({hiddenIconCount})</span>
+              </div>
+            </>
+          )}
           <div style={{ borderTop: '1px solid #666', borderBottom: '1px solid #fff', margin: '2px 0' }} />
           <div
             className="sgi-menu-item"
             onClick={() => {
-              setContextMenu(null);
-              setModalMode('prom');
+              handleSetContextMenu(null);
+              handleSetModal('prom');
             }}
           >
             <span>SGI PROM Command Monitor...</span>
@@ -1251,6 +499,30 @@ export const App: React.FC = () => {
 
       </div>
       {/* ---- end of the scaled framebuffer: what follows covers the real display ---- */}
+
+      {/* Properties for the desktop icon that was right-clicked */}
+      {iconProperties && (
+        <DesktopIconProperties
+          colorScheme={colorScheme}
+          icon={iconProperties.icon}
+          at={iconProperties.at}
+          node={vfs.find((n) => n.name === iconProperties.icon.label && !n.path.includes('/dumpster/'))}
+          onClose={handleCloseIconProperties}
+          onOpen={() => {
+            handleCloseIconProperties();
+            launchApp(iconProperties.icon.appId, iconProperties.icon.payload);
+          }}
+          onDelete={() => {
+            irixAudio.playDumpsterCrunch();
+            dispatch({
+              type: 'deleteDesktopIcon',
+              id: iconProperties.icon.id,
+              name: iconProperties.icon.label,
+            });
+            handleCloseIconProperties();
+          }}
+        />
+      )}
 
       {/* screen_blanker: the blanked display with the screen saver running */}
       {blanked && (
@@ -1271,8 +543,8 @@ export const App: React.FC = () => {
           mode={modalMode}
           workstation={workstation}
           currentUser={currentUser}
-          onSelectUser={setCurrentUser}
-          onClose={() => setModalMode(null)}
+          onSelectUser={handleSetUser}
+          onClose={() => handleSetModal(null)}
         />
       )}
     </div>

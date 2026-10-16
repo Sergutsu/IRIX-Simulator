@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppId, SgiColorScheme, VfsNode } from '../state/osStore';
+import { LaunchApp, OpenNode, SgiColorScheme, VfsNode } from '../state/osStore';
 import { irixAudio } from '../sound/irixAudio';
 
 interface FsnAppProps {
   vfs: VfsNode[];
   colorScheme: SgiColorScheme;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
+  onOpenNode: OpenNode;
   onUpdateTitle?: (title: string) => void;
 }
 
@@ -17,6 +18,7 @@ export const FsnApp: React.FC<FsnAppProps> = ({
   vfs,
   colorScheme,
   onLaunchApp,
+  onOpenNode,
   onUpdateTitle,
 }) => {
   const [currentDir, setCurrentDir] = useState<string>('/usr/people/guest');
@@ -279,7 +281,7 @@ export const FsnApp: React.FC<FsnAppProps> = ({
     if (selectedNode.name.endsWith('.fti')) {
       onLaunchApp('iconsmith', { iconId: selectedNode.iconId });
     } else if (selectedNode.appId) {
-      onLaunchApp(selectedNode.appId, { path: selectedNode.path });
+      onOpenNode(selectedNode);
     } else {
       onLaunchApp('jot', { path: selectedNode.path });
     }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AppId, SgiColorScheme, VfsNode } from '../state/osStore';
+import { LaunchApp, OpenNode, SgiColorScheme, VfsNode } from '../state/osStore';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import { SgiThumbwheel } from '../components/SgiThumbwheel';
 import { irixAudio } from '../sound/irixAudio';
@@ -9,7 +9,8 @@ interface FileManagerAppProps {
   vfs: VfsNode[];
   colorScheme: SgiColorScheme;
   initialPath?: string;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
+  onOpenNode: OpenNode;
   onMoveToDumpster: (path: string) => void;
   onCreateFile: (dir: string, name: string, content: string) => void;
   onUpdateTitle?: (title: string) => void;
@@ -20,6 +21,7 @@ export const FileManagerApp: React.FC<FileManagerAppProps> = ({
   colorScheme,
   initialPath = '/usr/people/guest',
   onLaunchApp,
+  onOpenNode,
   onMoveToDumpster,
   onCreateFile,
   onUpdateTitle,
@@ -57,7 +59,7 @@ export const FileManagerApp: React.FC<FileManagerAppProps> = ({
     if (node.name.endsWith('.fti')) {
       onLaunchApp('iconsmith', { iconId: node.iconId });
     } else if (node.appId) {
-      onLaunchApp(node.appId, { ...(node.payload ?? {}), path: node.path });
+      onOpenNode(node);
     } else {
       onLaunchApp('jot', { path: node.path });
     }

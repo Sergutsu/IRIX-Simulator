@@ -265,9 +265,112 @@ export type AppId =
   | 'software_manager'
   | 'insight'
   | 'netscape'
-  | 'jot';
+  | 'jot'
+  | 'toolchest_editor';
 
 export type DeskId = 'Main' | 'Desk 2' | 'Desk 3' | 'Global';
+
+/** 4Dwm default window geometry. Pure data, so it lives beside the AppId it
+ *  describes rather than in the registry, which pulls in every application. */
+export interface AppWindowDefaults {
+  title: string;
+  iconId: string;
+  width: number;
+  height: number;
+}
+
+export const APP_WINDOW_DEFAULTS: Record<AppId, AppWindowDefaults> = {
+  winterm: { title: 'Winterm — root@silicon (/usr/people/guest)', iconId: 'winterm', width: 615, height: 330 },
+  gr_osview: { title: 'gr_osview', iconId: 'gr_osview', width: 385, height: 330 },
+  icon_catalog: { title: 'Icon Catalog: Applications (Page 1 of 6)', iconId: 'showcase', width: 535, height: 365 },
+  iconsmith: { title: 'IconSmith — /usr/lib/filetype/iconlib/buttonfly.fti', iconId: 'iconsmith', width: 775, height: 525 },
+  file_manager: { title: '/usr/people/guest', iconId: 'folder', width: 590, height: 455 },
+  fsn: { title: 'fsn — a 3D File System Navigator (/usr/people/guest)', iconId: 'fsn', width: 760, height: 515 },
+  gl_showcase: { title: 'SGI OpenGL & Buttonfly 3D Showcase (TrueColor 24-bit)', iconId: 'showcase', width: 585, height: 425 },
+  ivcalc: { title: 'IVcalc', iconId: 'showcase', width: 720, height: 520 },
+  system_manager: { title: 'System Manager — silicon.sgi.com', iconId: 'sysmgr', width: 635, height: 465 },
+  software_manager: { title: 'Software Manager 4.1 — Manage Installed Software', iconId: 'swmgr', width: 620, height: 485 },
+  screensaver: { title: 'Screen Saver — Desktop Customize Control Panel', iconId: 'screensaver', width: 700, height: 590 },
+  electropaint: { title: 'ElectroPaint — ep -c (Interactive Dancing Polygons)', iconId: 'electropaint', width: 800, height: 500 },
+  explorer: { title: 'Advanced Visualizer Model 4.2.1', iconId: 'explorer', width: 1080, height: 740 },
+  director: { title: 'The Director — Alias|Wavefront', iconId: 'explorer', width: 640, height: 460 },
+  aw_module: { title: 'Alias|Wavefront', iconId: 'explorer', width: 760, height: 520 },
+  reference: { title: 'Real IRIX Screenshot Reference Gallery', iconId: 'reference', width: 860, height: 620 },
+  fcheck: { title: 'fcheck — SGI image & movie sequence viewer', iconId: 'reference', width: 800, height: 560 },
+  insight: { title: 'SGI InSight — IRIX 6.5 Specifications, Icon Set & Web Framework', iconId: 'insight', width: 745, height: 525 },
+  netscape: { title: 'Netscape: SiliconSurf [SGI IRIX 6.5 Edition]', iconId: 'netscape', width: 685, height: 480 },
+  jot: { title: 'jot — /usr/people/guest/readme.sgi', iconId: 'jot', width: 560, height: 410 },
+  toolchest_editor: { title: 'Toolchest Editor — Customise the Toolchest Menu', iconId: 'toolchest_icon', width: 620, height: 520 },
+};
+
+/** Chapter of the SGI InSight online books. Lives here so the launch payloads
+ *  can be typed without the store importing an application component. */
+export type InsightChapter =
+  | 'specs'
+  | 'framework'
+  | 'icons'
+  | '4dwm'
+  | 'savers'
+  | 'wavefront'
+  | 'screenshots';
+
+/** An Alias|Wavefront product module, for the same reason. */
+export type AwModuleId =
+  | 'paint'
+  | 'property'
+  | 'dynamation'
+  | 'kinemation'
+  | 'preview'
+  | 'composer';
+
+/**
+ * What each application accepts when it is launched. An application that takes
+ * no arguments is typed `undefined`, so passing one is a compile error.
+ *
+ * This replaces the `Record<string, unknown>` payload that every launch site
+ * used to cast its way through, which silently turned a typo into `undefined`.
+ */
+export interface AppPayloads {
+  winterm: { runCmd?: string };
+  screensaver: { module?: string };
+  electropaint: undefined;
+  explorer: { mode?: 'model' | 'shade' | 'animate' | 'render' };
+  director: undefined;
+  aw_module: { module?: AwModuleId; title?: string };
+  reference: undefined;
+  fcheck: { path?: string };
+  gr_osview: undefined;
+  icon_catalog: undefined;
+  iconsmith: { iconId?: string };
+  file_manager: { path?: string };
+  fsn: undefined;
+  gl_showcase: { mode?: 'cube' | 'buttonfly' | 'torus' | 'indycam' };
+  ivcalc: undefined;
+  system_manager: { tab?: 'hardware' | 'customize' | 'processes' | 'audio' };
+  software_manager: undefined;
+  insight: { chapter?: InsightChapter };
+  netscape: { page?: 'siliconsurf' | 'irix65' | 'nekoware' };
+  jot: { path?: string };
+  toolchest_editor: undefined;
+}
+
+export type AppLaunchPayload = AppPayloads[AppId];
+
+/** Launch an application with arguments checked against that application. */
+export type LaunchApp = <A extends AppId>(appId: A, payload?: AppPayloads[A]) => void;
+
+/** Launch whatever a filesystem node points at. The one place a dynamic
+ *  AppId and an untyped node payload are allowed through. */
+export type OpenNode = (node: VfsNode) => void;
+
+/**
+ * The payload of a window, narrowed to the application it belongs to. TypeScript
+ * cannot correlate `win.appId === appId` with a generic union index, so this is
+ * the single cast that replaces the dozen casts it used to sit in front of.
+ */
+export function payloadOf<A extends AppId>(win: WindowInstance, appId: A): AppPayloads[A] | undefined {
+  return win.appId === appId ? (win.payload as AppPayloads[A]) : undefined;
+}
 
 export interface WindowInstance {
   id: string;
@@ -285,7 +388,7 @@ export interface WindowInstance {
   shaded: boolean;
   minTileX: number;
   minTileY: number;
-  payload?: Record<string, unknown>;
+  payload?: AppLaunchPayload;
 }
 
 export interface VfsNode {
@@ -761,6 +864,19 @@ QUICK GUIDE TO THIS WORKSTATION:
     tagHex: '0x00000100',
     appId: 'jot',
     content: ELECTROPAINT_SCRIPT_TEXT,
+  },
+
+  {
+    path: '/usr/sbin/toolchest',
+    name: 'toolchest',
+    type: 'exec',
+    iconId: 'toolchest_icon',
+    size: 118784,
+    mtime: 'Jun 15 1998',
+    permissions: '-rwxr-xr-x',
+    owner: 'root',
+    tagHex: '0x00001010',
+    appId: 'toolchest_editor',
   },
 
   // Wavefront / Alias|Wavefront product tree (the Maya predecessor)

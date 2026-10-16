@@ -1,21 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { AppId, SgiColorScheme } from '../state/osStore';
+import { InsightChapter, LaunchApp, SgiColorScheme } from '../state/osStore';
 import { IrixVectorIcon, IRIX_ICON_LIBRARY } from '../icons/irixIconSet';
 import { irixAudio } from '../sound/irixAudio';
 
-export type InsightChapter =
-  | 'specs'
-  | 'framework'
-  | 'icons'
-  | '4dwm'
-  | 'savers'
-  | 'wavefront'
-  | 'screenshots';
+export type { InsightChapter };
 
 interface InsightAppProps {
   colorScheme: SgiColorScheme;
   initialChapter?: InsightChapter;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 export const InsightApp: React.FC<InsightAppProps> = ({

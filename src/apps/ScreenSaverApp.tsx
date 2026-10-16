@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AppId, SgiColorScheme, WorkstationProfile } from '../state/osStore';
+import { LaunchApp, SgiColorScheme, WorkstationProfile } from '../state/osStore';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import { SCREEN_SAVER_MODULES, SaverInstance, findSaverModule } from '../screensaver/saverModules';
 import { EP_DEFAULT_SCRIPT } from '../screensaver/electropaint';
@@ -20,7 +20,7 @@ interface ScreenSaverAppProps {
   onChangeConfig: (patch: Partial<ScreenSaverConfig>) => void;
   onBlankNow: (moduleId?: string) => void;
   onSaveFile?: (path: string, content: string) => void;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 const IDLE_STEPS = [15, 30, 60, 120, 300, 600, 900, 1800];
@@ -394,7 +394,7 @@ export const ScreenSaverApp: React.FC<ScreenSaverAppProps> = ({
           type="button"
           className="sgi-btn"
           style={{ padding: '3px 12px', fontWeight: 700 }}
-          onClick={() => onLaunchApp('insight', { chapter: 'help' })}
+          onClick={() => onLaunchApp('insight', { chapter: 'savers' })}
         >
           Help
         </button>

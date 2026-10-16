@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppId, ColorSchemeId, DeskId, SgiColorScheme } from '../state/osStore';
+import { AppId, ColorSchemeId, DeskId, LaunchApp, SgiColorScheme } from '../state/osStore';
 import { AW_PRODUCTS } from '../apps/explorer/awProducts';
+import { APP_REGISTRY, toolchestKey } from '../apps/registry';
+import type { AppRegistration, CustomToolchestEntry, ToolchestCategory } from '../apps/registry';
+import type { ToolchestEdit } from '../state/osState';
 import { irixAudio } from '../sound/irixAudio';
 
 interface ToolchestProps {
@@ -8,7 +11,7 @@ interface ToolchestProps {
   colorScheme: SgiColorScheme;
   selectedDesktopIcon: string | null;
   soundEnabled: boolean;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
   onSelectColorScheme: (id: ColorSchemeId) => void;
   onSwitchDesk: (desk: DeskId) => void;
   onToggleSound: () => void;
@@ -17,10 +20,15 @@ interface ToolchestProps {
   onEmptyDumpster: () => void;
   onOpenPromMonitor: () => void;
   onOpenClogin: () => void;
+  /** user edits and added entries from the Toolchest editor */
+  toolchestEdits: Record<string, ToolchestEdit>;
+  toolchestCustom: CustomToolchestEntry[];
 }
 
 interface MenuItem {
   label: string;
+  /** places the item among the other entries in its drawer */
+  order: number;
   action?: () => void;
   submenu?: MenuItem[];
   dividerAfter?: boolean;
@@ -34,6 +42,8 @@ export const Toolchest: React.FC<ToolchestProps> = ({
   colorScheme,
   selectedDesktopIcon,
   soundEnabled,
+  toolchestEdits,
+  toolchestCustom,
   onLaunchApp,
   onSelectColorScheme,
   onSwitchDesk,
@@ -59,113 +69,89 @@ export const Toolchest: React.FC<ToolchestProps> = ({
     return () => window.removeEventListener('mousedown', handleOutside);
   }, []);
 
+  /**
+   * Application entries for a Toolchest drawer come from the application
+   * registry, so a new application appears in the menus by being added there.
+   * Only the desktop's own actions (colour schemes, desks, toggles, the PROM
+   * monitor) stay here, because they are not applications.
+   *
+   * User edits from the Toolchest editor (rename, reorder, hide, delete) and
+   * the user's own added entries are layered on top.
+   */
+  const placements = (category: ToolchestCategory, submenu?: string): MenuItem[] => {
+    const built = (Object.entries(APP_REGISTRY) as [AppId, AppRegistration][]).flatMap(
+      ([appId, app]) =>
+        (app.toolchest ?? [])
+          .filter((pl) => pl.category === category && pl.submenu === submenu)
+          .map((pl) => ({ ...pl, appId, key: toolchestKey(appId, pl) }))
+    );
+    const custom = toolchestCustom
+      .filter((c) => c.category === category && c.submenu === submenu)
+      .map((c) => ({ ...c, key: `custom:${c.id}`, custom: true }));
+    return [...built, ...custom]
+      .map((pl) => {
+        const edit = toolchestEdits[pl.key] ?? {};
+        return {
+          label: edit.label ?? pl.label,
+          order: edit.order ?? pl.order,
+          dividerAfter: 'dividerAfter' in pl ? pl.dividerAfter : undefined,
+          key: pl.key,
+          edited: Object.keys(edit).length > 0,
+          action: () => onLaunchApp(pl.appId, pl.payload),
+        };
+      })
+      .filter((pl) => {
+        const edit = toolchestEdits[pl.key] ?? {};
+        return !edit.hidden && !edit.deleted;
+      })
+      .sort((a, b) => a.order - b.order);
+  };
+
+  const ordered = (items: MenuItem[]) => items.slice().sort((a, b) => a.order - b.order);
+
   const categories: { id: string; label: string; items: MenuItem[] }[] = [
     {
       id: 'Desktop',
       label: 'Desktop',
-      items: [
-        {
-          label: 'Access Files',
-          submenu: [
-            {
-              label: 'Home Directory (/usr/people/guest)',
-              action: () => onLaunchApp('file_manager', { path: '/usr/people/guest' }),
-            },
-            {
-              label: 'Icon Library (/usr/lib/filetype/iconlib)',
-              action: () => onLaunchApp('file_manager', { path: '/usr/lib/filetype/iconlib' }),
-            },
-            {
-              label: 'SGI Demos (/usr/demos)',
-              action: () => onLaunchApp('file_manager', { path: '/usr/demos' }),
-            },
-            {
-              label: '3D File System Navigator (fsn)',
-              action: () => onLaunchApp('fsn'),
-            },
-          ],
-        },
+      items: ordered([
+        { label: 'Access Files', order: 1, submenu: placements('Desktop', 'Access Files') },
         {
           label: 'Customize',
+          order: 2,
           dividerAfter: true,
-          submenu: [
-            {
-              label: 'Color Schemes (Indigo Magic)',
-              action: () => onSelectColorScheme('indigo_magic'),
-            },
-            {
-              label: 'Color Scheme: Rio Grande',
-              action: () => onSelectColorScheme('rio_grande'),
-            },
-            {
-              label: 'Color Scheme: Redwood',
-              action: () => onSelectColorScheme('redwood'),
-            },
-            {
-              label: 'Color Scheme: Gainsborough',
-              action: () => onSelectColorScheme('gainsborough'),
-            },
-            {
-              label: 'Color Scheme: Midnight Onyx',
-              action: () => onSelectColorScheme('midnight_onyx'),
-              dividerAfter: true,
-            },
-            {
-              label: 'Screen Saver...',
-              action: () => onLaunchApp('screensaver'),
-            },
-            {
-              label: 'Background / Desktop Pattern...',
-              action: () => onLaunchApp('system_manager', { tab: 'customize' }),
-            },
-            {
-              label: 'Windows & Desktop Settings...',
-              action: () => onLaunchApp('system_manager', { tab: 'customize' }),
-            },
+          submenu: ordered([
+            { label: 'Color Schemes (Indigo Magic)', order: 1, action: () => onSelectColorScheme('indigo_magic') },
+            { label: 'Color Scheme: Rio Grande', order: 2, action: () => onSelectColorScheme('rio_grande') },
+            { label: 'Color Scheme: Redwood', order: 3, action: () => onSelectColorScheme('redwood') },
+            { label: 'Color Scheme: Gainsborough', order: 4, action: () => onSelectColorScheme('gainsborough') },
+            { label: 'Color Scheme: Midnight Onyx', order: 5, action: () => onSelectColorScheme('midnight_onyx'), dividerAfter: true },
+            ...placements('Desktop', 'Customize'),
             {
               label: `Audio Cues: ${soundEnabled ? 'Enabled (ON)' : 'Muted (OFF)'}`,
+              order: 9,
               action: onToggleSound,
             },
             {
               label: `Quick Launch Bar: ${quickLaunchBar ? 'Shown' : 'Hidden'}`,
+              order: 10,
               action: onToggleQuickLaunchBar,
             },
-          ],
+          ]),
         },
-        {
-          label: 'Open Unix Shell (xwsh)',
-          action: () => onLaunchApp('winterm'),
-        },
-        {
-          label: 'Icon Catalog',
-          action: () => onLaunchApp('icon_catalog'),
-        },
+        ...placements('Desktop'),
         {
           label: 'Switch Desk',
+          order: 5,
           submenu: [
-            { label: 'Main Desk', action: () => onSwitchDesk('Main') },
-            { label: 'Desk 2 (IconSmith Studio)', action: () => onSwitchDesk('Desk 2') },
-            { label: 'Desk 3 (3D Graphics / fsn)', action: () => onSwitchDesk('Desk 3') },
+            { label: 'Main Desk', order: 1, action: () => onSwitchDesk('Main') },
+            { label: 'Desk 2 (IconSmith Studio)', order: 2, action: () => onSwitchDesk('Desk 2') },
+            { label: 'Desk 3 (3D Graphics / fsn)', order: 3, action: () => onSwitchDesk('Desk 3') },
           ],
         },
-        {
-          label: 'Empty Dumpster',
-          action: onEmptyDumpster,
-          dividerAfter: true,
-        },
-        {
-          label: 'Run Screen Saver Now (screen_blanker)',
-          action: () => onLaunchApp('screensaver'),
-        },
-        {
-          label: 'Lock Screen (clogin)',
-          action: onOpenClogin,
-        },
-        {
-          label: 'SGI PROM Command Monitor...',
-          action: onOpenPromMonitor,
-        },
-      ],
+        { label: 'Empty Dumpster', order: 6, action: onEmptyDumpster, dividerAfter: true },
+        { label: 'Lock Screen (clogin)', order: 8, action: onOpenClogin },
+        { label: 'SGI PROM Command Monitor...', order: 9, action: onOpenPromMonitor },
+      ]),
     },
     {
       id: 'Selected',
@@ -173,196 +159,44 @@ export const Toolchest: React.FC<ToolchestProps> = ({
       items: [
         {
           label: selectedDesktopIcon ? `Open "${selectedDesktopIcon}"` : 'Open Selected Icon',
+          order: 1,
           action: () => onLaunchApp('file_manager'),
         },
         {
           label: 'Edit Vector Icon in IconSmith...',
-          action: () =>
-            onLaunchApp('iconsmith', {
-              iconId: selectedDesktopIcon || 'showcase',
-            }),
+          order: 2,
+          action: () => onLaunchApp('iconsmith', { iconId: selectedDesktopIcon || 'showcase' }),
           dividerAfter: true,
         },
         {
           label: 'Get File Type Info (.ftr)',
+          order: 3,
           action: () => onLaunchApp('file_manager'),
         },
-        {
-          label: 'Open in Text Editor (jot)',
-          action: () => onLaunchApp('jot'),
-        },
+        { label: 'Open in Text Editor (jot)', order: 4, action: () => onLaunchApp('jot') },
       ],
     },
     {
       id: 'Internet',
       label: 'Internet',
-      items: [
-        {
-          label: 'Netscape Communicator 4.78',
-          action: () => onLaunchApp('netscape', { page: 'siliconsurf' }),
-        },
-        {
-          label: 'SGI SiliconSurf Portal',
-          action: () => onLaunchApp('netscape', { page: 'siliconsurf' }),
-        },
-        {
-          label: 'IRIX 6.5 Release Stream Notes',
-          action: () => onLaunchApp('netscape', { page: 'irix65' }),
-        },
-        {
-          label: 'Nekoware & SGI Freeware Archive',
-          action: () => onLaunchApp('netscape', { page: 'nekoware' }),
-        },
-      ],
+      items: placements('Internet'),
     },
     {
       id: 'Wavefront',
-      label: 'WAVEFRONT Products',
+      label: 'Wavefront',
       items: [
-        {
-          label: 'The Director',
-          action: () => onLaunchApp('director'),
-        },
-        ...AW_PRODUCTS.map((product) => ({
+        { label: 'The Director', order: 1, action: () => onLaunchApp('director') },
+        ...AW_PRODUCTS.map((product, i) => ({
           label: product.id === 'model' ? 'Advanced Visualizer Model 4.2.1' : product.label,
+          order: i + 2,
           action: () => onLaunchApp(product.appId, product.payload),
         })),
       ],
     },
-    {
-      id: 'Find',
-      label: 'Find',
-      items: [
-        {
-          label: 'Icon Catalog (Applications & Tools)',
-          action: () => onLaunchApp('icon_catalog'),
-        },
-        {
-          label: 'Find an Icon (.fti Library)',
-          action: () => onLaunchApp('iconsmith'),
-        },
-        {
-          label: 'Files & Directories (File Manager)',
-          action: () => onLaunchApp('file_manager'),
-        },
-        {
-          label: '3D File System Navigator (fsn)',
-          action: () => onLaunchApp('fsn'),
-        },
-      ],
-    },
-    {
-      id: 'System',
-      label: 'System',
-      items: [
-        {
-          label: 'System Manager (sysmgr)',
-          action: () => onLaunchApp('system_manager', { tab: 'hardware' }),
-        },
-        {
-          label: 'System Performance (gr_osview)',
-          action: () => onLaunchApp('gr_osview'),
-        },
-        {
-          label: 'Software Manager 4.1 (swmgr)',
-          action: () => onLaunchApp('software_manager'),
-        },
-        {
-          label: 'Hardware Inventory (hinv)',
-          action: () => onLaunchApp('winterm', { runCmd: 'hinv -v' }),
-          dividerAfter: true,
-        },
-        {
-          label: 'Switch SGI Workstation Hardware...',
-          action: () => onLaunchApp('system_manager', { tab: 'hardware' }),
-          dividerAfter: true,
-        },
-        {
-          label: 'Real IRIX Screenshot Reference Gallery',
-          action: () => onLaunchApp('reference'),
-        },
-      ],
-    },
-    {
-      id: 'Demos',
-      label: 'SGI Demos',
-      items: [
-        {
-          label: 'fsn — 3D File System Navigator (1993)',
-          action: () => onLaunchApp('fsn'),
-        },
-        {
-          label: 'SGI 3D Cube & OpenGL Showcase',
-          action: () => onLaunchApp('gl_showcase', { mode: 'cube' }),
-        },
-        {
-          label: 'Buttonfly — 3D Flipping Polyhedra',
-          action: () => onLaunchApp('gl_showcase', { mode: 'buttonfly' }),
-        },
-        {
-          label: 'IVcalc — Inventor 3D calculator',
-          action: () => onLaunchApp('ivcalc'),
-        },
-        {
-          label: 'NURBS Torus Knot (Odyssey VPro)',
-          action: () => onLaunchApp('gl_showcase', { mode: 'torus' }),
-          dividerAfter: true,
-        },
-        {
-          label: 'IconSmith (.FTI Vector Icon Editor)',
-          action: () => onLaunchApp('iconsmith'),
-          dividerAfter: true,
-        },
-        {
-          label: 'ElectroPaint — Dancing Polygons Screen Saver',
-          action: () => onLaunchApp('electropaint'),
-        },
-        {
-          label: 'ElectroPaint — Run Full Screen Now',
-          action: () => onLaunchApp('screensaver'),
-        },
-        {
-          label: 'Bounce / Hopalong Saver Modules',
-          action: () => onLaunchApp('screensaver'),
-          dividerAfter: true,
-        },
-        {
-          label: 'Advanced Visualizer Model 4.2.1',
-          action: () => onLaunchApp('explorer'),
-        },
-        {
-          label: 'fcheck — Image & Movie Sequence Viewer',
-          action: () => onLaunchApp('fcheck'),
-        },
-      ],
-    },
-    {
-      id: 'Help',
-      label: 'Help',
-      items: [
-        {
-          label: 'IRIX 6.5 Specifications & Framework Guide',
-          action: () => onLaunchApp('insight', { chapter: 'specs' }),
-        },
-        {
-          label: 'Web Framework Selection Analysis',
-          action: () => onLaunchApp('insight', { chapter: 'framework' }),
-        },
-        {
-          label: 'IRIX Vector Icon (.fti / .ftr) Spec',
-          action: () => onLaunchApp('insight', { chapter: 'icons' }),
-        },
-        {
-          label: '4Dwm & Indigo Magic UI Guidelines',
-          action: () => onLaunchApp('insight', { chapter: '4dwm' }),
-          dividerAfter: true,
-        },
-        {
-          label: 'Real IRIX Screenshots (compare the simulation)',
-          action: () => onLaunchApp('reference'),
-        },
-      ],
-    },
+    { id: 'Find', label: 'Find', items: placements('Find') },
+    { id: 'System', label: 'System', items: placements('System') },
+    { id: 'Demos', label: 'SGI Demos', items: placements('Demos') },
+    { id: 'Help', label: 'Help', items: placements('Help') },
   ];
 
   return (

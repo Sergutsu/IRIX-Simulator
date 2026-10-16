@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SgiColorScheme, VfsNode } from '../state/osStore';
+import { LaunchApp, SgiColorScheme, VfsNode } from '../state/osStore';
 import { irixAudio } from '../sound/irixAudio';
 
 interface FcheckAppProps {
@@ -7,7 +7,7 @@ interface FcheckAppProps {
   vfs: VfsNode[];
   initialPath?: string;
   onUpdateTitle?: (title: string) => void;
-  onLaunchApp: (appId: 'explorer' | 'reference', payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 /**

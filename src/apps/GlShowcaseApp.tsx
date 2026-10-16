@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppId, SgiColorScheme, WorkstationProfile } from '../state/osStore';
+import { AppId, LaunchApp, SgiColorScheme, WorkstationProfile } from '../state/osStore';
 import { irixAudio } from '../sound/irixAudio';
 
 interface GlShowcaseAppProps {
   workstation: WorkstationProfile;
   colorScheme: SgiColorScheme;
   initialMode?: 'cube' | 'buttonfly' | 'torus' | 'indycam';
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 export const GlShowcaseApp: React.FC<GlShowcaseAppProps> = ({

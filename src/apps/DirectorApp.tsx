@@ -6,11 +6,11 @@
  * does not contain the modeler.
  */
 import React, { useState } from 'react';
-import type { AppId } from '../state/osStore';
+import type { LaunchApp } from '../state/osStore';
 import { AW_PRODUCTS } from './explorer/awProducts';
 
 interface DirectorAppProps {
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 const MENUS = ['File', 'Applications', 'Utilities', 'Project Setup', 'Preferences', 'User Defined', 'Help'] as const;

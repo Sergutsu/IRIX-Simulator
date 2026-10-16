@@ -4,7 +4,7 @@
  * model. Paint and Dynamation run on their own.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import type { AppId, SgiColorScheme } from '../state/osStore';
+import type { SgiColorScheme, LaunchApp } from '../state/osStore';
 import type { AwModuleId } from './explorer/awProducts';
 import {
   setAwFrame,
@@ -21,7 +21,7 @@ import { drawScene, MATERIALS, objectRotationAt, RESOLUTIONS, type Camera, type 
 interface AwModuleAppProps {
   module: AwModuleId;
   colorScheme: SgiColorScheme;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
   onSaveRender?: (path: string, dataUrl: string, meta: string) => void;
 }
 

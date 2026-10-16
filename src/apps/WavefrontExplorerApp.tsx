@@ -11,7 +11,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { SgiColorScheme } from '../state/osStore';
+import { LaunchApp, SgiColorScheme } from '../state/osStore';
 import {
   buildPrimitive,
   DeformId,
@@ -45,7 +45,7 @@ interface WavefrontExplorerAppProps {
   initialMode?: ExplorerTool;
   onSaveRender?: (path: string, dataUrl: string, meta: string) => void;
   onSaveFile?: (path: string, content: string) => void;
-  onLaunchApp?: (appId: 'reference' | 'fcheck', payload?: Record<string, unknown>) => void;
+  onLaunchApp?: LaunchApp;
 }
 
 let objectSerial = 0;

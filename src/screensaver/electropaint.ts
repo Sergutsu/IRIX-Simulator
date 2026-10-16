@@ -138,17 +138,21 @@ export interface EpSliderSpec {
   int?: boolean;
 }
 
+/** Upper bound on the flock. The `n` slider and the per-shape pool share it, so
+ *  the slider can never ask for more shapes than exist to draw. */
+export const EP_MAX_SHAPES = 256;
+
 export const EP_SLIDERS: EpSliderSpec[] = [
   { id: 'whl', acronym: 'whl', label: 'Wheel', min: -1, max: 1, init: 0.2, mode: 'bounce', drift: 0.9 },
   { id: 'spn', acronym: 'spn', label: 'Spin', min: -1, max: 1, init: 0.35, mode: 'bounce', drift: 1.2 },
   { id: 'flp', acronym: 'flp', label: 'Flip', min: -1, max: 1, init: 0.05, mode: 'wrap', drift: 0.7 },
-  { id: 'arm', acronym: 'arm', label: 'Arm', min: 0, max: 1, init: 0.5, mode: 'bounce', drift: 0.5 },
+  { id: 'arm', acronym: 'arm', label: 'Arm', min: 0, max: 1, init: 0.55, mode: 'bounce', drift: 0.35 },
   { id: 'wrst', acronym: 'wrst', label: 'Wrist', min: -1, max: 1, init: 0.1, mode: 'bounce', drift: 0.85 },
   { id: 'twst', acronym: 'twst', label: 'Twist', min: -3, max: 3, init: 1, mode: 'wrap', drift: 0.6 },
   { id: 'sz', acronym: 'sz', label: 'Size', min: 0.15, max: 2.6, init: 0.85, mode: 'bounce', drift: 0.4 },
   { id: 'zoom', acronym: 'zoom', label: 'Zoom', min: 0.45, max: 3.2, init: 1.6, mode: 'bounce', drift: 0.35 },
   { id: 'spd', acronym: 'spd', label: 'Speed', min: 0, max: 3, init: 1, mode: 'bounce', drift: 0.5 },
-  { id: 'n', acronym: 'n', label: 'N', min: 3, max: 64, init: 42, mode: 'bounce', drift: 8, int: true },
+  { id: 'n', acronym: 'n', label: 'N', min: 3, max: EP_MAX_SHAPES, init: 72, mode: 'bounce', drift: 12, int: true },
   { id: 'rat', acronym: 'rat', label: 'Rate', min: -4, max: 4, init: 0.6, mode: 'wrap', drift: 1.1 },
   { id: 'rng', acronym: 'rng', label: 'Range', min: 0, max: 1, init: 0.42, mode: 'bounce', drift: 0.3 },
 ];
@@ -168,9 +172,16 @@ export interface EpSlider extends EpSliderSpec {
   highlight: number; // 0..1 fading pulse used by the UI when a script re-targets it
 }
 
-/** Keep the sub-slider out of the dead zone where it cannot move the value. */
-function nudgeSub(state: EpState, s: EpSlider) {
-  if (Math.abs(s.sub) < 0.12) s.sub = state.rand.next() < 0.5 ? -0.45 : 0.45;
+/**
+ * Keep the sub-slider out of the dead zone where it cannot move the value.
+ *
+ * The direction is derived from where the value sits, not rolled at random:
+ * a control you are watching used to swap its own drift direction from frame
+ * to frame, which read as the helix flickering instead of morphing.
+ */
+function nudgeSub(s: EpSlider) {
+  if (Math.abs(s.sub) >= 0.12) return;
+  s.sub = s.value < (s.min + s.max) / 2 ? 0.45 : -0.45;
 }
 
 export interface EpTriangle {
@@ -375,8 +386,9 @@ export function createEpState(opts?: {
   const rand = new Rand48(opts?.seed);
   const sliders = {} as Record<EpSliderId, EpSlider>;
   for (const spec of EP_SLIDERS) {
-    let sub = rand.range(-1, 1);
-    if (Math.abs(sub) < 0.12) sub = sub < 0 ? -0.45 : 0.45;
+    // Direction comes from where the value starts, not from the dice, so two
+    // runs differ in their flock but not in how the controls behave.
+    const sub = spec.init < (spec.min + spec.max) / 2 ? -0.45 : 0.45;
     sliders[spec.id] = {
       ...spec,
       value: spec.init,
@@ -387,9 +399,9 @@ export function createEpState(opts?: {
     };
   }
   const triangles: EpTriangle[] = [];
-  for (let i = 0; i < 64; i++) {
+  for (let i = 0; i < EP_MAX_SHAPES; i++) {
     triangles.push({
-      phase: (i / 64) * Math.PI * 2 + rand.range(-0.03, 0.03),
+      phase: (i / EP_MAX_SHAPES) * Math.PI * 2 + rand.range(-0.03, 0.03),
       width: rand.range(0.7, 1.3),
       fold: rand.range(0.6, 1.15),
       hue: rand.range(0, 360),
@@ -410,7 +422,7 @@ export function createEpState(opts?: {
     hueBase: rand.range(0, 360),
     lighting: true,
     blend: opts?.blend ?? true,
-    squares: opts?.squares ?? false,
+    squares: opts?.squares ?? true,
     clearOnFrame: true,
     frame: 0,
     rand,
@@ -428,8 +440,11 @@ function applyAct(state: EpState, act: EpAct) {
     const s = state.sliders[id];
     if (!s) continue;
     s.value = Math.max(s.min, Math.min(s.max, val));
-    s.sub = state.rand.range(-1, 1);
-    nudgeSub(state, s);
+    // An act that pushes a control high keeps pushing it up, and one that
+    // pulls it low keeps pulling it down: deterministic, so a script replays
+    // the same way twice instead of reshuffling the helix on every pass.
+    s.sub = val >= (s.min + s.max) / 2 ? 0.5 : -0.5;
+    nudgeSub(s);
     s.auto = true;
     s.hold = false;
     s.highlight = 1;
@@ -441,7 +456,11 @@ function startAct(state: EpState, index: number) {
   state.actIndex = index % state.acts.length;
   const act = state.acts[state.actIndex];
   state.actElapsed = 0;
-  state.actDuration = Math.max(2, act.duration + state.rand.range(-act.variance, act.variance));
+  // The scripted `variance` is applied as a fixed wobble per act rather than a
+  // dice roll, so the show plays the same every time and the helix does not
+  // reshuffle itself between passes.
+  const wobble = Math.sin(state.actIndex * 1.7) * act.variance;
+  state.actDuration = Math.max(2, act.duration + wobble);
   applyAct(state, act);
 }
 
@@ -484,7 +503,7 @@ export function setEpSliderAuto(state: EpState, id: EpSliderId, auto: boolean) {
   if (!s) return;
   s.auto = auto;
   s.hold = !auto;
-  if (auto) nudgeSub(state, s);
+  if (auto) nudgeSub(s);
 }
 
 /** `R` on a column: back to the home value, engine driving again. */
@@ -493,8 +512,8 @@ export function resetEpSlider(state: EpState, id: EpSliderId) {
   if (!s) return;
   setEpSlider(state, id, EP_SLIDERS.find((x) => x.id === id)?.init ?? 0);
   s.auto = true;
-  s.sub = state.rand.range(-1, 1);
-  nudgeSub(state, s);
+  s.sub = s.value < (s.min + s.max) / 2 ? 0.45 : -0.45;
+  nudgeSub(s);
 }
 
 export function toggleEpSliderMode(state: EpState, id: EpSliderId) {
@@ -509,8 +528,8 @@ export function randomizeEpSliders(state: EpState) {
     setEpSlider(state, spec.id, state.rand.range(spec.min, spec.max));
     const s = state.sliders[spec.id];
     s.auto = true;
-    s.sub = state.rand.range(-1, 1);
-    nudgeSub(state, s);
+    s.sub = s.value < (s.min + s.max) / 2 ? 0.45 : -0.45;
+    nudgeSub(s);
   }
 }
 
@@ -540,9 +559,9 @@ export function stepEp(state: EpState, dt: number) {
   // with it.  The floor keeps the sequence moving even in deep slow motion.
   state.actElapsed += dt * Math.max(0.15, rate);
   if (state.actElapsed >= state.actDuration) {
-    // ElectroPaint's sequence picks acts in a shuffled order, rarely repeating
-    const next = (state.actIndex + 1 + Math.floor(state.rand.next() * (state.acts.length - 1))) % state.acts.length;
-    startAct(state, next);
+    // Acts play in the order the script gives them. Shuffling them was what
+    // made the controls jump around at random.
+    startAct(state, state.actIndex + 1);
   }
 
   // Sub-slider drift animates every act toward its limits ------------
@@ -683,13 +702,13 @@ export function drawEpFrame(
 
     // Parameter along the shell.  `twst` changes how many times the chain
     // winds around, which is what turns the ring into a spiral or a cone.
-    const wind = 1 + twist * 0.22;
+    const wind = 1 + twist * 0.34;
     const a = u * Math.PI * 2 * wind + tri.phase * 0.18 + t * (0.25 + arm * 0.35) * 0.35;
     const wobble = 1 + tri.wobble * 0.35;
     const ringR = 1.02 * wobble;
 
     // the chain itself: a ring that `arm` lifts into a cylinder / cone / band
-    const lift = (u - 0.5) * (0.35 + arm * 1.9) + tri.wobble * 0.9;
+    const lift = (u - 0.5) * (0.5 + arm * 3.2) + tri.wobble * 0.9;
     const base: V3 = {
       x: Math.cos(a) * ringR,
       y: lift,

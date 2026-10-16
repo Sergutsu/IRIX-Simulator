@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { AppId, SgiColorScheme } from '../state/osStore';
+import { LaunchApp, SgiColorScheme } from '../state/osStore';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import { IRIX_REFERENCE_SCREENSHOTS } from '../reference/irixScreenshots';
 
 interface ReferenceGalleryAppProps {
   colorScheme: SgiColorScheme;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 /**

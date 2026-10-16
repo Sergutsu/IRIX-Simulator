@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AppId, VfsNode, WindowInstance, WorkstationProfile } from '../state/osStore';
+import { LaunchApp, VfsNode, WindowInstance, WorkstationProfile } from '../state/osStore';
 
 interface WintermAppProps {
   workstation: WorkstationProfile;
   vfs: VfsNode[];
   windows: WindowInstance[];
   initialCommand?: string;
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 interface TermEntry {

@@ -13,6 +13,7 @@ import {
   EP_DEFAULT_SCRIPT,
   setEpSlider,
   hlsToRgb,
+  EP_MAX_SHAPES,
 } from '../src/screensaver/electropaint';
 import { SCREEN_SAVER_MODULES } from '../src/screensaver/saverModules';
 import {
@@ -27,6 +28,9 @@ import { booleanHulls, cameraBasis, sceneToObj } from '../src/apps/explorer/mode
 import { MIN_SCREEN_H, MIN_SCREEN_W, clampWindow, fitScreen, placeWindow, setScreenMetrics } from '../src/state/screen';
 import { calcSequence } from '../src/apps/ivcalc/engine';
 import { HOME_POSE, drawCalculator, keyFacesCamera, keyScreenPoint, pickCalcKey } from '../src/apps/ivcalc/scene';
+import { initialOsState, loadOsState, osReducer, saveOsState } from '../src/state/osState';
+import type { OsState } from '../src/state/osState';
+import { APP_WINDOW_DEFAULTS } from '../src/state/osStore';
 
 let problems = 0;
 const fail = (msg: string) => {
@@ -37,6 +41,8 @@ const ok = (msg: string) => console.log('  ok   ' + msg);
 
 function makeStubCtx() {
   let coords = 0;
+  let corners = 0;
+  let lastCorners = 0;
   const grad = { addColorStop: () => undefined };
   const handler: ProxyHandler<Record<string, unknown>> = {
     get(target, prop: string) {
@@ -54,7 +60,10 @@ function makeStubCtx() {
           if (!Number.isFinite(x) || !Number.isFinite(y)) {
             fail(`${prop} got non-finite coordinate (${x}, ${y})`);
           }
+          if (prop === 'moveTo') corners = 1;
+          else corners++;
         }
+        if (prop === 'closePath') lastCorners = corners;
         if (prop === 'fillRect' || prop === 'strokeRect') {
           const [x, y, w, h] = args as number[];
           if (![x, y, w, h].every(Number.isFinite)) fail(`${prop} got non-finite args`);
@@ -66,7 +75,12 @@ function makeStubCtx() {
       return true;
     },
   };
-  return { ctx: new Proxy({}, handler) as unknown as CanvasRenderingContext2D, count: () => coords };
+  return {
+    ctx: new Proxy({}, handler) as unknown as CanvasRenderingContext2D,
+    count: () => coords,
+    /** corners in the most recently closed path: 4 for a quad, 3 for a triangle */
+    lastPath: () => lastCorners,
+  };
 }
 
 /* 1. ElectroPaint engine ------------------------------------------------ */
@@ -97,6 +111,47 @@ console.log('ElectroPaint engine');
   drawEpFrame(ctx, state, 640, 480, { clear: true });
   if (state.triCount !== 64) fail(`expected 64 polygons at n=64, got ${state.triCount}`);
   else ok('n slider drives the polygon count (64 polygons)');
+
+  // quads are the default shape, not triangles
+  const shape = createEpState({ seed: 7 });
+  if (!shape.squares) fail('ElectroPaint defaults to triangles, expected quads');
+  const pts = makeStubCtx();
+  drawEpFrame(pts.ctx, shape, 640, 480, { clear: true });
+  const corners = pts.lastPath();
+  if (corners !== 4) fail(`default shape drew ${corners} corners, expected a quad (4)`);
+  else ok('shapes are quads by default');
+
+  // the flock can be pushed to the cap and still draws
+  const dense = createEpState({ seed: 7 });
+  setEpSlider(dense, 'n', EP_MAX_SHAPES, { hold: true });
+  stepEp(dense, 1 / 30);
+  const big = makeStubCtx();
+  drawEpFrame(big.ctx, dense, 1280, 1024, { clear: true, fill: true });
+  if (dense.triCount !== EP_MAX_SHAPES) fail(`at n=${EP_MAX_SHAPES} drew ${dense.triCount} polygons`);
+  else if (!Number.isFinite(big.count())) fail('geometry went non-finite at the maximum flock size');
+  else ok(`flock reaches ${EP_MAX_SHAPES} shapes without breaking`);
+
+  // The helix controls must follow the script, not the dice. Two runs on
+  // *different* seeds have different shape jitter and colours, but the control
+  // values a viewer sees must match exactly.
+  const runA = createEpState({ seed: 1 });
+  const runB = createEpState({ seed: 987654 });
+  for (let i = 0; i < 400; i++) {
+    stepEp(runA, 1 / 30);
+    stepEp(runB, 1 / 30);
+  }
+  const drift = (Object.keys(runA.sliders) as (keyof typeof runA.sliders)[]).filter(
+    (k) => Math.abs(runA.sliders[k].value - runB.sliders[k].value) > 1e-9
+  );
+  if (drift.length) fail(`the control panel depends on the random seed: ${drift.join(', ')}`);
+  else ok('control values follow the script, not the seed (no random reshuffling)');
+
+  // a held control keeps the value the user gave it
+  const held = createEpState({ seed: 3 });
+  setEpSlider(held, 'arm', 0.83, { hold: true });
+  for (let i = 0; i < 300; i++) stepEp(held, 1 / 30);
+  if (Math.abs(held.sliders.arm.value - 0.83) > 1e-9) fail('a held control was pulled away by the drive');
+  else ok('a control you grab stays where you put it');
   const [r, g, b] = hlsToRgb(200, 0.5, 0.8);
   if (![r, g, b].every((v) => v >= 0 && v <= 255 && Number.isFinite(v))) fail(`hlsToRgb gave ${r},${g},${b}`);
   else ok(`hlsToRgb(200,0.5,0.8) = ${r},${g},${b}`);
@@ -317,6 +372,190 @@ console.log('Desktop display scaling');
   const big = placeWindow(900, 600, 48);
   if (big.x <= 155) fail(`cascade did not step: ${big.x}`);
   else ok(`cascade steps at 1:1 (155 -> ${big.x}) and stays on the display`);
+}
+
+console.log('Desktop state reducer');
+{
+  const run = (state: OsState, ...actions: Parameters<typeof osReducer>[1][]): OsState =>
+    actions.reduce(osReducer, state);
+  const base = { ...initialOsState, windows: [], activeWinId: '' };
+  let bad = 0;
+  const expect = (cond: boolean, msg: string) => {
+    if (!cond) {
+      fail(msg);
+      bad++;
+    }
+  };
+
+  // launching gives a window the registry's default geometry
+  const launched = osReducer(base, { type: 'launch', appId: 'fcheck' });
+  const win = launched.windows[0];
+  expect(!!win, 'launch produced no window');
+  expect(win.width === APP_WINDOW_DEFAULTS.fcheck.width, `launch width ${win?.width} is not the default`);
+  expect(win.title === APP_WINDOW_DEFAULTS.fcheck.title, 'launch title is not the default');
+  expect(launched.activeWinId === win.id, 'launch did not focus the new window');
+
+  // relaunching the same app reuses the window instead of stacking another
+  const again = osReducer(launched, { type: 'launch', appId: 'fcheck' });
+  expect(again.windows.length === 1, 'relaunch opened a second window');
+
+  // each Alias|Wavefront module is its own window
+  const aw1 = osReducer(base, { type: 'launch', appId: 'aw_module', payload: { module: 'paint' } });
+  const aw2 = osReducer(aw1, { type: 'launch', appId: 'aw_module', payload: { module: 'preview' } });
+  expect(aw2.windows.length === 2, 'two Alias|Wavefront modules collapsed into one window');
+  expect(aw2.windows[1].title === 'Alias|Wavefront', 'aw_module lost its payload title');
+
+  // `screens bounce` preselects the saver module
+  const saver = osReducer(base, { type: 'launch', appId: 'screensaver', payload: { module: 'hops' } });
+  expect(saver.saverConfig.moduleId === 'hopalong', `hops mapped to ${saver.saverConfig.moduleId}`);
+  const saver2 = osReducer(base, { type: 'launch', appId: 'screensaver', payload: { module: 'bounce' } });
+  expect(saver2.saverConfig.moduleId === 'bounce', 'bounce did not preselect the bounce module');
+
+  // a saved render becomes a filesystem node the File Manager can show
+  const saved = osReducer(base, {
+    type: 'saveRender',
+    path: '/usr/people/guest/renders/frame.rgb',
+    dataUrl: 'data:image/png;base64,AAAA',
+    meta: '320x240',
+  });
+  const node = saved.vfs.find((n) => n.path === '/usr/people/guest/renders/frame.rgb');
+  expect(!!node, 'saveRender wrote no filesystem node');
+  expect(node?.imageUrl === 'data:image/png;base64,AAAA', 'saved render lost its image');
+  const rewritten = osReducer(saved, {
+    type: 'saveRender',
+    path: '/usr/people/guest/renders/frame.rgb',
+    dataUrl: 'data:image/png;base64,BBBB',
+    meta: '640x480',
+  });
+  expect(rewritten.vfs.filter((n) => n.path === '/usr/people/guest/renders/frame.rgb').length === 1,
+    'saving over the same render duplicated the node');
+
+  // a new file lands in the filesystem and the dumpster empties
+  const created = run(base, { type: 'createFile', dir: '/usr/people/guest', name: 'notes', content: 'x' });
+  expect(created.vfs.some((n) => n.path === '/usr/people/guest/notes'), 'createFile wrote nothing');
+  const trashed = osReducer(created, { type: 'moveToDumpster', path: '/usr/people/guest/notes' });
+  expect(trashed.vfs.some((n) => n.path === '/dumpster/notes'), 'moveToDumpster left the node in place');
+  const emptied = osReducer(trashed, { type: 'emptyDumpster' });
+  expect(!emptied.vfs.some((n) => n.path.startsWith('/dumpster/')), 'emptyDumpster left files behind');
+
+  // focus raises z above every other window
+  const two = run(base,
+    { type: 'launch', appId: 'fcheck' },
+    { type: 'launch', appId: 'gl_showcase' });
+  const top = two.windows.reduce((m, w) => (w.zIndex > m.zIndex ? w : m), two.windows[0]);
+  const raised = osReducer(two, { type: 'focusWindow', id: two.windows[0].id });
+  const raisedTop = raised.windows.reduce((m, w) => (w.zIndex > m.zIndex ? w : m), raised.windows[0]);
+  expect(raisedTop.id === two.windows[0].id, 'focusWindow did not raise the window');
+
+  // desktop icons: move, delete to the dumpster, restore
+  const moved = osReducer(base, { type: 'moveDesktopIcon', id: 'fsn_desk', x: 320, y: 240 });
+  expect(moved.desktopIcons.fsn_desk?.pos?.x === 320, 'a desktop icon did not move');
+  expect(moved.windows.length === 0, 'moving an icon disturbed the windows');
+  const deleted = osReducer(moved, { type: 'deleteDesktopIcon', id: 'fsn_desk', name: 'fsn 3D' });
+  expect(deleted.desktopIcons.fsn_desk?.hidden === true, 'the icon was not hidden by delete');
+  expect(deleted.vfs.some((n) => n.path === '/dumpster/fsn 3D'), 'the deleted icon is not in the dumpster');
+  const deletedTwice = osReducer(deleted, { type: 'deleteDesktopIcon', id: 'fsn_desk', name: 'fsn 3D' });
+  expect(deletedTwice.vfs.filter((n) => n.path === '/dumpster/fsn 3D').length === 1,
+    'deleting twice put two nodes in the dumpster');
+  const restored = osReducer(deletedTwice, { type: 'restoreDesktopIcons' });
+  expect(Object.keys(restored.desktopIcons).length === 0, 'restore left icon state behind');
+  expect(!restored.vfs.some((n) => n.path === '/dumpster/fsn 3D'), 'restore left the icon in the dumpster');
+
+  // the Toolchest editor
+  const renamed = osReducer(base, { type: 'editToolchest', key: 'k', edit: { label: 'Renamed' } });
+  expect(renamed.toolchestEdits.k?.label === 'Renamed', 'a Toolchest rename did not stick');
+  const entry = {
+    id: 't1',
+    category: 'Find' as const,
+    label: 'Mine',
+    order: 99,
+    appId: 'fcheck' as const,
+  };
+  const added = osReducer(renamed, { type: 'addToolchestEntry', entry });
+  expect(added.toolchestCustom.length === 1, 'a custom Toolchest entry was not added');
+  expect(osReducer(added, { type: 'removeToolchestEntry', id: 't1' }).toolchestCustom.length === 0,
+    'a custom Toolchest entry was not removed');
+  const reset = osReducer(added, { type: 'resetToolchest' });
+  expect(reset.toolchestCustom.length === 0 && Object.keys(reset.toolchestEdits).length === 0,
+    'Restore Defaults left Toolchest edits behind');
+
+  // blanking and waking
+  const blanked = osReducer(base, { type: 'blankNow', moduleId: 'bounce' });
+  expect(blanked.blanked && blanked.saverConfig.moduleId === 'bounce', 'blankNow did not blank or set the module');
+  expect(!osReducer(blanked, { type: 'wake' }).blanked, 'wake did not unblank');
+
+  // unknown actions leave the state alone
+  const same = osReducer(base, { type: 'hydrate', state: base });
+  expect(same === base, 'hydrate did not replace the state');
+
+  if (!bad) ok('launch, focus, filesystem, desktop icons, Toolchest edits and blanking behave');
+}
+
+console.log('Session persistence');
+{
+  // a minimal localStorage so the save/load path can run outside a browser
+  const store = new Map<string, string>();
+  let failWrite = false;
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      // modelled quota: what does not fit is the rendered images
+      if (failWrite && v.includes('data:image')) {
+        const err: any = new Error('quota');
+        err.name = 'QuotaExceededError';
+        throw err;
+      }
+      store.set(k, v);
+    },
+    removeItem: (k: string) => store.delete(k),
+    clear: () => store.clear(),
+  };
+  let bad = 0;
+  const expect = (cond: boolean, msg: string) => {
+    if (!cond) {
+      fail(msg);
+      bad++;
+    }
+  };
+
+  const session = osReducer(
+    { ...initialOsState, windows: [] },
+    { type: 'launch', appId: 'gr_osview' }
+  );
+  const screen = osReducer(session, { type: 'setColorScheme', id: 'redwood' });
+  const blanked = osReducer(screen, { type: 'blankNow' });
+  saveOsState(blanked);
+
+  const restored = loadOsState();
+  expect(restored.colorSchemeId === 'redwood', 'the colour scheme did not survive a reload');
+  expect(restored.windows.length === 1 && restored.windows[0].appId === 'gr_osview',
+    'open windows did not survive a reload');
+  expect(!restored.blanked, 'a reload came back still blanked');
+  expect(restored.modalMode === null && restored.contextMenu === null,
+    'transient state was persisted');
+
+  // a corrupt save must not stop the desktop booting
+  store.set('irix65.osstate.v1', '{not json');
+  expect(loadOsState() === initialOsState, 'a corrupt save was not ignored');
+  store.set('irix65.osstate.v1', '{"windows":"nope"}');
+  expect(loadOsState() === initialOsState, 'a save with no windows was not ignored');
+
+  // an over-quota save drops the rendered images and still persists
+  store.clear();
+  failWrite = true;
+  saveOsState(
+    osReducer(initialOsState, {
+      type: 'saveRender',
+      path: '/usr/people/guest/renders/big.rgb',
+      dataUrl: 'data:image/png;base64,' + 'A'.repeat(2000),
+      meta: 'big',
+    })
+  );
+  const squeezed = loadOsState();
+  expect(squeezed.vfs.some((n) => n.path === '/usr/people/guest/renders/big.rgb'),
+    'the over-quota save dropped the whole filesystem');
+
+  if (!bad) ok('state survives a reload, corrupt saves are ignored, quota overflow is survivable');
 }
 
 console.log(problems ? `\n${problems} PROBLEM(S)` : '\nall checks passed');

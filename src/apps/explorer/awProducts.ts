@@ -2,22 +2,16 @@
  * Alias|Wavefront products The Director launches.
  * Each one is its own 4Dwm window. The Director does not host their UI.
  */
-import type { AppId } from '../../state/osStore';
+import type { AppLaunchPayload, AppId, AwModuleId } from '../../state/osStore';
 
-export type AwModuleId =
-  | 'paint'
-  | 'property'
-  | 'dynamation'
-  | 'kinemation'
-  | 'preview'
-  | 'composer';
+export type { AwModuleId };
 
 export interface AwProduct {
   id: string;
   label: string;
   blurb: string;
   appId: AppId;
-  payload?: Record<string, unknown>;
+  payload?: AppLaunchPayload;
 }
 
 export const AW_PRODUCTS: AwProduct[] = [
@@ -78,5 +72,8 @@ export const AW_PRODUCTS: AwProduct[] = [
 ];
 
 export function isAwModuleId(value: string): value is AwModuleId {
-  return AW_PRODUCTS.some((p) => p.payload?.module === value);
+  return AW_PRODUCTS.some((p) => {
+    const payload = p.payload;
+    return !!payload && typeof payload === 'object' && 'module' in payload && payload.module === value;
+  });
 }

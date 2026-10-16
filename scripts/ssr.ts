@@ -19,7 +19,16 @@ import { ReferenceGalleryApp } from '../src/apps/ReferenceGalleryApp';
 import { FcheckApp } from '../src/apps/FcheckApp';
 import { IVcalcApp } from '../src/apps/IVcalcApp';
 import { ScreenBlanker } from '../src/components/ScreenBlanker';
-import { INITIAL_VFS_NODES, SGI_COLOR_SCHEMES, WORKSTATION_PROFILES } from '../src/state/osStore';
+import { DesktopIcons } from '../src/components/DesktopIcons';
+import { APP_REGISTRY, CONTEXT_MENU, DESKTOP_ICONS, QUICK_LAUNCH } from '../src/apps/registry';
+import type { AppRuntime } from '../src/apps/registry';
+import type { AppId } from '../src/state/osStore';
+import {
+  INITIAL_VFS_NODES,
+  INITIAL_WINDOWS,
+  SGI_COLOR_SCHEMES,
+  WORKSTATION_PROFILES,
+} from '../src/state/osStore';
 
 let problems = 0;
 const check = (name: string, fn: () => string, mustContain: string[] = []) => {
@@ -51,7 +60,40 @@ check('Desktop (App)', () => renderToStaticMarkup(React.createElement(App)), [
   // the framebuffer wrapper that scales the desktop to the display
   'transform:scale(',
   'Desks Overview',
+  // the Wavefront drawer, and not the old WAVEFRONT Products label
+  'Wavefront',
 ]);
+
+// Desktop icons honour the user's moves and removals
+{
+  const noop2 = () => undefined;
+  const visible = renderToStaticMarkup(
+    React.createElement(DesktopIcons, {
+      colorScheme: SGI_COLOR_SCHEMES.indigo_magic,
+      icons: DESKTOP_ICONS,
+      state: { fsn_desk: { pos: { x: 300, y: 200 } }, cdrom: { hidden: true } },
+      cellSize: 60,
+      iconSize: 40,
+      selectedId: null,
+      launchingId: null,
+      onSelect: noop2,
+      onLaunch: noop2,
+      onMove: noop2,
+      onProperties: noop2,
+    } as never)
+  );
+  const shown = (visible.match(/Double-click to open/g) || []).length;
+  const bad: string[] = [];
+  if (!visible.includes('left:300px') || !visible.includes('top:200px')) bad.push('a moved icon ignored its position');
+  if (visible.includes('CDROM')) bad.push('an icon sent to the dumpster is still on the desktop');
+  if (shown !== DESKTOP_ICONS.length - 1) bad.push(`expected ${DESKTOP_ICONS.length - 1} icons, rendered ${shown}`);
+  if (bad.length) {
+    problems++;
+    console.error(`  FAIL desktop icons: ${bad.join('; ')}`);
+  } else {
+    console.log(`  ok   desktop icons (${shown} shown, 1 moved, 1 in the dumpster)`);
+  }
+}
 
 check(
   'Screen Saver control panel',
@@ -184,6 +226,86 @@ check(
     ),
   ['fcheck', 'images', 'Play']
 );
+
+/**
+ * Sweep every entry in the application registry.  The checks above render a few
+ * applications with hand-picked props; this one guarantees that *every* app the
+ * registry knows about builds without throwing, so adding an entry to
+ * src/apps/registry.tsx is covered the moment it lands.
+ */
+const runtime = {
+  win: { ...INITIAL_WINDOWS[0], payload: {} },
+  workstation: ws,
+  colorScheme: scheme,
+  windows: INITIAL_WINDOWS,
+  vfs: INITIAL_VFS_NODES,
+  currentUser: 'guest',
+  focusMode: 'click',
+  soundEnabled: true,
+  saverConfig: {
+    enabled: true,
+    moduleId: 'electropaint',
+    idleSeconds: 300,
+    lockScreen: false,
+    cycleModules: false,
+  },
+  onLaunchApp: noop,
+  onCloseWindow: noop,
+  onUpdateTitle: noop,
+  onSaveFile: noop,
+  onSaveRender: noop,
+  onSaveFtiToVfs: noop,
+  onMoveToDumpster: noop,
+  onCreateFile: noop,
+  onSelectWorkstation: noop,
+  onSelectColorScheme: noop,
+  onChangeFocusMode: noop,
+  onToggleSound: noop,
+  onChangeSaverConfig: noop,
+  onBlankNow: noop,
+  toolchestEdits: {},
+  toolchestCustom: [],
+  onEditToolchest: noop,
+  onAddToolchestEntry: noop,
+  onRemoveToolchestEntry: noop,
+  onResetToolchest: noop,
+} as unknown as AppRuntime;
+
+console.log('\nEvery application registry entry');
+for (const id of Object.keys(APP_REGISTRY) as AppId[]) {
+  check(`registry: ${id}`, () =>
+    renderToStaticMarkup(React.createElement(React.Fragment, null, APP_REGISTRY[id].render(runtime)))
+  );
+}
+
+/**
+ * The desktop surfaces are derived from the registry, so a mistake there is
+ * invisible until someone opens the desktop. Check the shapes here.
+ */
+const ids = Object.keys(APP_REGISTRY) as AppId[];
+const known = new Set<string>(ids);
+const surfaces: [string, { appId: string; label: string }[]][] = [
+  ['desktop icons', DESKTOP_ICONS],
+  ['root menu', CONTEXT_MENU],
+  ['quick launch', QUICK_LAUNCH],
+];
+
+console.log('\nDesktop surfaces derived from the registry');
+for (const [name, rows] of surfaces) {
+  if (!rows.length) {
+    problems++;
+    console.error(`  FAIL ${name}: nothing rendered`);
+    continue;
+  }
+  const unknown = rows.filter((r) => !known.has(r.appId));
+  const blank = rows.filter((r) => !r.label);
+  if (unknown.length || blank.length) {
+    problems++;
+    console.error(`  FAIL ${name}: ${unknown.length} unknown app id(s), ${blank.length} blank label(s)`);
+  } else {
+    console.log(`  ok   ${name} (${rows.length} entries, all app ids known)`);
+  }
+}
 
 console.log(problems ? `\n${problems} PROBLEM(S)` : '\nall components rendered');
 process.exit(problems ? 1 : 0);

@@ -58,18 +58,74 @@ and the gallery lists what every capture is evidence for.
 ## Development Scripts
 
 ```bash
-# headless engine checks (ElectroPaint, all saver modules, Explorer renderer)
-node_modules/.bin/esbuild scripts/smoke.ts --bundle --platform=node --format=cjs \
-  --outfile=/tmp/smoke.cjs && node /tmp/smoke.cjs
+# engine checks (ElectroPaint, saver modules, Explorer, IVcalc) plus a
+# server-side render of the desktop and every application in the registry
+npm test
 
 # render PNG previews of the saver and renderer without a browser
 node_modules/.bin/esbuild scripts/renderPreview.ts --bundle --platform=node --format=cjs \
   --outfile=/tmp/preview.cjs && node /tmp/preview.cjs /tmp/irix-preview
-
-# server-render every window to catch component errors
-node_modules/.bin/esbuild scripts/ssr.ts --bundle --platform=node --format=cjs \
-  --loader:.css=text --outfile=/tmp/ssr.cjs && node /tmp/ssr.cjs
 ```
+
+`npm test` also runs on CI, so a broken application fails the deploy.
+
+## Architecture
+
+| Where | What |
+| --- | --- |
+| `src/apps/registry.tsx` | Every application: its `render`, its Toolchest entries, its desktop icon, its root-menu and quick-launch entries. The desktop surfaces are derived from this one map. |
+| `src/state/osStore.ts` | Types and static data: `AppId`, the typed launch payloads, 4Dwm window defaults, the XFS seed filesystem. |
+| `src/state/osState.ts` | The whole simulator state as one reducer, plus save/restore to `localStorage`. |
+| `src/state/screen.ts` | Framebuffer scaling and window clamping. |
+| `src/apps/`, `src/components/` | The applications, and the 4Dwm shell around them. |
+
+Applications are plain `props -> JSX`; they never import each other. What they
+share is the XFS filesystem and one launch function, passed in by the registry.
+
+## Adding an application
+
+1. Add the id to `AppId` in `src/state/osStore.ts`, plus its entry in
+   `APP_WINDOW_DEFAULTS` and its launch payload in `AppPayloads`.
+2. Add its icon to `src/icons/irixIconSet.tsx`.
+3. Write the component in `src/apps/`, giving it a `colorScheme` prop and an
+   `onLaunchApp: LaunchApp`.
+4. Add one entry to `APP_REGISTRY` with `render` and whatever Toolchest,
+   desktop, root-menu or quick-launch placements it should have.
+
+Nothing else needs to change. `npm test` renders the new entry and checks the
+derived desktop surfaces, so a broken application fails CI.
+
+Launch arguments are typed per application, so `onLaunchApp('gl_showcase',
+{ mode: 'cuibe' })` is a compile error rather than a window that silently opens
+on the wrong view.
+
+## Desktop icons
+
+Drag an icon anywhere on the root window. Right-click it for **Properties**:
+what it launches and with what arguments, its XFS details, and a **Send to
+Dumpster** button. Deleted icons land in `/dumpster` and leave the desktop;
+**Restore Desktop Icons** in the root menu puts them all back.
+
+## Toolchest
+
+**Toolchest → Desktop → Toolchest Editor** (also `/usr/sbin/toolchest`) renames,
+reorders, hides and deletes any Toolchest entry, and adds your own that launch
+any registered application. **Restore Defaults** undoes all of it. Edits are
+part of the saved session.
+
+## ElectroPaint
+
+Shapes are **quads** by default, the flock goes up to 256, and the helix is
+taller and winds further. The control values follow the script rather than the
+dice: two runs differ in their shapes and colours but not in how the sliders
+behave, so the show plays the same way every time. Grabbing a control still pins
+it where you put it.
+
+## Your session is saved
+
+The desktop is written to `localStorage` (debounced), so windows, desks, colour
+scheme, hardware profile, screen saver settings and files you saved in Jot or
+IconSmith survive a reload. Clear the site data to boot a fresh IRIX desktop.
 
 ## Running Locally
 

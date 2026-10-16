@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { AppId, SgiColorScheme } from '../state/osStore';
+import { LaunchApp, SgiColorScheme } from '../state/osStore';
 import { IrixVectorIcon } from '../icons/irixIconSet';
 import { irixAudio } from '../sound/irixAudio';
 
 interface NetscapeAppProps {
   colorScheme: SgiColorScheme;
   initialPage?: 'siliconsurf' | 'irix65' | 'nekoware';
-  onLaunchApp: (appId: AppId, payload?: Record<string, unknown>) => void;
+  onLaunchApp: LaunchApp;
 }
 
 export const NetscapeApp: React.FC<NetscapeAppProps> = ({
